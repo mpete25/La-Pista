@@ -1,0 +1,49 @@
+# --- Dependencies ---
+node_modules/
+.pnp/
+.pnp.js
+
+# --- Secrets / environment (NEVER commit these) ---
+.env
+.env.*
+!.env.example
+*.local
+.envrc
+
+# Supabase local secrets
+.supabase/
+supabase/.env
+supabase/.temp/
+
+# --- Build output ---
+dist/
+dist-ssr/
+build/
+.vite/
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Test / coverage ---
+coverage/
+.nyc_output/
+
+# --- Editor / OS ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Misc caches ---
+.cache/
+.eslintcache
+
+# --- Claude Code (per-user local settings) ---
+.claude/settings.local.json
