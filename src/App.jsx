@@ -7,12 +7,15 @@ import { supabase } from "./lib/supabase.js";
 import { useAuth } from "./hooks/useAuth.js";
 import AuthScreen from "./components/AuthScreen.jsx";
 import {
-  fetchPlayers, fetchEvents, joinEventApi, leaveEventApi,
+  fetchPlayers, fetchEvents, fetchCourts, joinEventApi, leaveEventApi,
   createEventApi, cancelEventApi, updateCapacityApi, adminAddApi, adminRemoveApi,
+  adminUpdatePlayerApi, adminSetPointsApi, adminDeletePlayerApi,
 } from "./lib/api.js";
 
 /* Demo mode: no Supabase configured -> the app runs on the in-memory seed data. */
 const IS_DEMO = !supabase;
+
+const adminInput = { fontFamily: "'Outfit', ui-sans-serif, system-ui, sans-serif", fontSize: 14, padding: "11px 14px", borderRadius: 12, border: "1px solid #E9DECB", background: "#F6F1E8", outline: "none" };
 
 /* ================= HELPERS ================= */
 const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -184,6 +187,9 @@ export default function App() {
   const [players, setPlayers] = useState(demo ? seedPlayers : []);
   const [events, setEvents] = useState(demo ? () => seedEvents(seedPlayers()) : []);
   const [threads, setThreads] = useState(demo ? seedThreads : () => ({}));
+  const [courtsList, setCourtsList] = useState(demo ? () => Array.from({ length: 8 }, (_, i) => ({ id: "dc" + (i + 1), name: "D" + (i + 1), sort_order: i + 1 })) : []);
+  const [editPlayer, setEditPlayer] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [smsLog, setSmsLog] = useState([]);
   const [tab, setTab] = useState("rangliste");
   const [viewPlayerId, setViewPlayerId] = useState(null);
@@ -193,7 +199,7 @@ export default function App() {
   const [adminCreds, setAdminCreds] = useState({ email: "", pass: "" });
   const [toast, setToast] = useState(null);
   const [matchday, setMatchday] = useState(null);
-  const [newEvent, setNewEvent] = useState({ title: "Torsdagsrangliste", date: "2026-07-23", time: "18:30", capacity: 16 });
+  const [newEvent, setNewEvent] = useState({ title: "Torsdagsrangliste", date: "2026-07-23", time: "18:30", capacity: 16, courtIds: [] });
   const [eventDetailId, setEventDetailId] = useState(null);
   const [expandedHist, setExpandedHist] = useState(null);
   const [clock, setClock] = useState(Date.now());
@@ -209,11 +215,17 @@ export default function App() {
   /* ---- Real data (Supabase) ---- */
   const reloadPlayers = async () => setPlayers(await fetchPlayers());
   const reloadEvents = async () => setEvents(await fetchEvents());
+
+  /* DOMAIN RULE: confirmed spots cannot self-cancel within 24h of start —
+     the player must contact the center. Enforced in the DB too (leave_event). */
+  const nowMs = () => (demo ? new Date(TODAY + "T12:00:00").getTime() : Date.now());
+  const eventStartMs = (ev) => new Date(`${ev.date}T${ev.time || "00:00"}:00`).getTime();
+  const canSelfCancel = (ev) => eventStartMs(ev) - nowMs() > 24 * 60 * 60 * 1000;
   useEffect(() => {
     if (demo || !session) return;
     let cancelled = false;
-    Promise.all([fetchPlayers(), fetchEvents()])
-      .then(([pl, ev]) => { if (!cancelled) { setPlayers(pl); setEvents(ev); } })
+    Promise.all([fetchPlayers(), fetchEvents(), fetchCourts()])
+      .then(([pl, ev, co]) => { if (!cancelled) { setPlayers(pl); setEvents(ev); setCourtsList(co); } })
       .catch((e) => { console.error("Data load failed:", e); if (!cancelled) setToast("Kunne ikke hente data – prøv at genindlæse"); });
     return () => { cancelled = true; };
   }, [demo, session]);
@@ -251,6 +263,11 @@ export default function App() {
     } catch (e) { console.error(e); notify("Tilmelding fejlede – prøv igen"); }
   };
   const leaveEvent = async (evId) => {
+    const evObj = events.find(e => e.id === evId);
+    if (evObj && evObj.registered.includes(ME) && !canSelfCancel(evObj)) {
+      notify("Afmelding er lukket under 24 timer før start – kontakt centeret");
+      return;
+    }
     if (demo) {
       setEvents(es => es.map(ev => {
         if (ev.id !== evId) return ev;
@@ -265,7 +282,12 @@ export default function App() {
       await leaveEventApi(evId);
       notify("Du er afmeldt");
       await reloadEvents();
-    } catch (e) { console.error(e); notify("Afmelding fejlede – prøv igen"); }
+    } catch (e) {
+      console.error(e);
+      notify(String(e?.message || "").includes("CANCEL_WINDOW_CLOSED")
+        ? "Afmelding er lukket under 24 timer før start – kontakt centeret"
+        : "Afmelding fejlede – prøv igen");
+    }
   };
   const acceptOffer = (evId) => setEvents(es => es.map(ev => {
     if (ev.id !== evId || !ev.pendingOffer) return ev;
@@ -327,11 +349,18 @@ export default function App() {
   const adminCreate = async () => {
     if (!newEvent.date || !newEvent.time) return;
     if (demo) {
-      setEvents(es => [...es, { id: "e" + Date.now(), ...newEvent, capacity: Number(newEvent.capacity) || 16, registered: [], waitlist: [], status: "åben", pendingOffer: null }].sort((a, b) => a.date.localeCompare(b.date)));
+      const courtNames = newEvent.courtIds.map(id => courtsList.find(c => c.id === id)?.name).filter(Boolean);
+      setEvents(es => [...es, { id: "e" + Date.now(), ...newEvent, capacity: Number(newEvent.capacity) || 16, courtNames, registered: [], waitlist: [], status: "åben", pendingOffer: null }].sort((a, b) => a.date.localeCompare(b.date)));
       notify("Begivenhed oprettet");
+      setNewEvent(ne => ({ ...ne, courtIds: [] }));
       return;
     }
-    try { await createEventApi({ ...newEvent, centerId: me?.centerId }); notify("Begivenhed oprettet"); await reloadEvents(); }
+    try {
+      await createEventApi({ ...newEvent, centerId: me?.centerId });
+      notify("Begivenhed oprettet");
+      setNewEvent(ne => ({ ...ne, courtIds: [] }));
+      await reloadEvents();
+    }
     catch (e) { console.error(e); notify("Kunne ikke oprette begivenheden"); }
   };
 
@@ -387,6 +416,42 @@ export default function App() {
     setEvents(es => es.map(e => e.id === md.eventId ? { ...e, status: "afsluttet" } : e));
     setMatchday({ ...md, stage: "færdig" });
     notify("Ranglisten er opdateret med dagens resultater");
+  };
+
+  /* ---- Admin: player management ---- */
+  const savePlayer = async () => {
+    const ep = editPlayer;
+    if (!ep) return;
+    const orig = playersById[ep.id];
+    if (!orig) { setEditPlayer(null); return; }
+    const newPts = parseInt(ep.points, 10);
+    if (demo) {
+      setPlayers(ps => ps.map(p => p.id === ep.id ? { ...p, name: ep.name.trim() || p.name, phone: ep.phone, points: Number.isNaN(newPts) ? p.points : newPts } : p));
+      setEditPlayer(null);
+      notify("Spiller opdateret");
+      return;
+    }
+    try {
+      if (ep.name.trim() !== orig.name || ep.phone !== (orig.phone || "")) await adminUpdatePlayerApi(ep.id, ep.name, ep.phone);
+      if (!Number.isNaN(newPts) && newPts !== orig.points) await adminSetPointsApi(ep.id, newPts, ep.reason);
+      await reloadPlayers();
+      setEditPlayer(null);
+      notify("Spiller opdateret");
+    } catch (e) { console.error(e); notify("Kunne ikke gemme ændringerne"); }
+  };
+  const deletePlayer = async (pid) => {
+    if (demo) {
+      setPlayers(ps => ps.filter(p => p.id !== pid));
+      setConfirmDelete(null);
+      notify("Spiller fjernet");
+      return;
+    }
+    try {
+      await adminDeletePlayerApi(pid);
+      setConfirmDelete(null);
+      await Promise.all([reloadPlayers(), reloadEvents()]);
+      notify("Spiller fjernet");
+    } catch (e) { console.error(e); notify("Kunne ikke fjerne spilleren"); }
   };
 
   /* ================= VIEWS ================= */
@@ -574,12 +639,15 @@ export default function App() {
           <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, marginTop: 8, display: "flex", gap: 14, flexWrap: "wrap" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Clock size={13} />kl. {ev.time} · 2 timer</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><User size={13} />{ev.registered.length}/{ev.capacity} pladser</span>
+            {ev.courtNames?.length > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Swords size={13} />Baner: {ev.courtNames.join(" · ")}</span>}
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
           {ev.date === TODAY && isIn && ev.status === "åben" && <Btn onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
           {!isIn && !onWL && <Btn kind={full ? "soft" : "primary"} onClick={() => joinEvent(ev.id)} style={{ flex: 1 }}>{full ? "Skriv på venteliste" : "Tilmeld dig"}</Btn>}
-          {(isIn || onWL) && <Btn kind="ghost" onClick={() => leaveEvent(ev.id)} style={{ flex: 1 }}>{onWL ? "Forlad venteliste" : "Afmeld"}</Btn>}
+          {(isIn || onWL) && (onWL || canSelfCancel(ev)
+            ? <Btn kind="ghost" onClick={() => leaveEvent(ev.id)} style={{ flex: 1 }}>{onWL ? "Forlad venteliste" : "Afmeld"}</Btn>
+            : <div style={{ flex: 1, alignSelf: "center", fontFamily: sans, fontSize: 12, color: C.muted, textAlign: "center", lineHeight: 1.4, padding: "8px 4px" }}>Afmelding er lukket (&lt;24 t) – kontakt centeret for afbud</div>)}
         </div>
         <Eyebrow style={{ padding: "0 4px" }}>Tilmeldte spillere ({ev.registered.length})</Eyebrow>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
@@ -668,7 +736,9 @@ export default function App() {
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                 {today && isIn && ev.status === "åben" && <Btn onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
                 {!isIn && !onWL && <Btn kind={full ? "soft" : "primary"} onClick={() => joinEvent(ev.id)} style={{ flex: 1 }}>{full ? "Skriv på venteliste" : "Tilmeld dig"}</Btn>}
-                {(isIn || onWL) && <Btn kind="ghost" onClick={() => leaveEvent(ev.id)} style={today && isIn ? {} : { flex: 1 }}>{onWL ? "Forlad venteliste" : "Afmeld"}</Btn>}
+                {(isIn || onWL) && (onWL || canSelfCancel(ev)
+                  ? <Btn kind="ghost" onClick={() => leaveEvent(ev.id)} style={today && isIn ? {} : { flex: 1 }}>{onWL ? "Forlad venteliste" : "Afmeld"}</Btn>
+                  : <div style={{ alignSelf: "center", fontFamily: sans, fontSize: 12, color: C.muted, lineHeight: 1.4, padding: "8px 4px", ...(today && isIn ? {} : { flex: 1, textAlign: "center" }) }}>Afmelding er lukket (&lt;24 t) – kontakt centeret</div>)}
                 {isIn && !today && <Tag tone="olive"><Check size={11} style={{ verticalAlign: "-1.5px", marginRight: 3 }} />Tilmeldt</Tag>}
                 {onWL && <Tag tone="gold">Venteliste nr. {ev.waitlist.indexOf(ME) + 1}</Tag>}
               </div>
@@ -685,6 +755,7 @@ export default function App() {
     const md = matchday;
     const ev = events.find(e => e.id === md.eventId);
     const minsLeft = Math.max(0, 120 - Math.floor((clock - md.startedAt) / 60000));
+    const courtLabel = (i) => (ev?.courtNames && ev.courtNames[i]) || "Bane " + (i + 1);
 
     if (md.stage === "lobby") return (
       <div>
@@ -697,7 +768,7 @@ export default function App() {
           {md.courts.map((c, i) => (
             <Card key={i} pad={16} style={i === md.myCourtIdx ? { border: `1.5px solid ${C.mokka}` } : {}}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 17, color: C.espresso }}>Bane {i + 1}{i === md.myCourtIdx && <span style={{ fontFamily: sans, fontSize: 12, color: C.mokka, marginLeft: 8 }}>· din bane</span>}</div>
+                <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 17, color: C.espresso }}>{courtLabel(i)}{i === md.myCourtIdx && <span style={{ fontFamily: sans, fontSize: 12, color: C.mokka, marginLeft: 8 }}>· din bane</span>}</div>
                 <Tag>Ø {Math.round(c.reduce((a, id) => a + playersById[id].points, 0) / 4)} point</Tag>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
@@ -713,7 +784,7 @@ export default function App() {
           ))}
         </div>
         <div style={{ position: "sticky", bottom: 86, marginTop: 16 }}>
-          <Btn onClick={() => setMatchday({ ...md, stage: "bane", startedAt: Date.now() })} style={{ width: "100%" }}><Swords size={17} /> Start kamp – bane {md.myCourtIdx + 1}</Btn>
+          <Btn onClick={() => setMatchday({ ...md, stage: "bane", startedAt: Date.now() })} style={{ width: "100%" }}><Swords size={17} /> Start kamp – {courtLabel(md.myCourtIdx)}</Btn>
           <div style={{ textAlign: "center", fontFamily: sans, fontSize: 12, color: C.muted, marginTop: 8 }}>Åbnet · kampstart om 8 min.</div>
         </div>
       </div>
@@ -728,6 +799,7 @@ export default function App() {
       <div>
         <div style={{ padding: "26px 4px 14px", textAlign: "center" }}>
           <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+            <Tag tone="gold">{courtLabel(md.myCourtIdx)}</Tag>
             <Tag><Clock size={11} style={{ verticalAlign: "-1.5px", marginRight: 4 }} />{minsLeft} min tilbage</Tag>
             <Tag tone="mokka">Sæt {md.round + 1}</Tag>
           </div>
@@ -801,7 +873,7 @@ export default function App() {
       return (
         <div>
           <div style={{ padding: "26px 4px 14px", textAlign: "center" }}>
-            <Eyebrow>Bane {md.myCourtIdx + 1} · {md.results.length} sæt spillet</Eyebrow>
+            <Eyebrow>{courtLabel(md.myCourtIdx)} · {md.results.length} sæt spillet</Eyebrow>
             <H size={26} style={{ marginTop: 6 }}>Dagens pointændringer</H>
             <p style={{ fontFamily: sans, fontSize: 13, color: C.muted, margin: "8px 0 0", lineHeight: 1.55 }}>Formlen vægter pointdifferencen: Δ = K × (faktisk − forventet) pr. sæt. Slår du spillere med flere point, tjener du ekstra – taber du som favorit, koster det mere.</p>
           </div>
@@ -869,6 +941,17 @@ export default function App() {
             <input value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} placeholder="Titel" style={{ gridColumn: "1 / -1", fontFamily: sans, fontSize: 14, padding: "11px 14px", borderRadius: 12, border: `1px solid ${C.line}`, background: C.sand, outline: "none" }} />
             <input type="date" value={newEvent.date} onChange={e => setNewEvent({ ...newEvent, date: e.target.value })} style={{ fontFamily: sans, fontSize: 14, padding: "11px 14px", borderRadius: 12, border: `1px solid ${C.line}`, background: C.sand, outline: "none" }} />
             <input type="time" value={newEvent.time} onChange={e => setNewEvent({ ...newEvent, time: e.target.value })} style={{ fontFamily: sans, fontSize: 14, padding: "11px 14px", borderRadius: 12, border: `1px solid ${C.line}`, background: C.sand, outline: "none" }} />
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted }}>Baner til dagen <span style={{ fontSize: 12 }}>(kapacitet sættes automatisk til baner × 4)</span></div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                {courtsList.map(c => {
+                  const on = newEvent.courtIds.includes(c.id);
+                  return (
+                    <button key={c.id} onClick={() => setNewEvent(ne => { const ids = on ? ne.courtIds.filter(x => x !== c.id) : [...ne.courtIds, c.id]; return { ...ne, courtIds: ids, capacity: ids.length > 0 ? ids.length * 4 : ne.capacity }; })} style={{ padding: "8px 14px", borderRadius: 12, border: `1.5px solid ${on ? C.mokka : C.line}`, background: on ? C.mokka : C.cream, color: on ? C.cream : C.espresso, fontFamily: sans, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>{c.name}</button>
+                  );
+                })}
+              </div>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, gridColumn: "1 / -1" }}>
               <span style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, flex: 1 }}>Antal pladser (standard 16)</span>
               <input type="number" min="4" step="1" value={newEvent.capacity} onChange={e => setNewEvent({ ...newEvent, capacity: e.target.value })} style={{ width: 74, textAlign: "center", fontFamily: sans, fontSize: 14, padding: "9px 8px", borderRadius: 12, border: `1px solid ${C.line}`, background: C.sand, outline: "none" }} />
@@ -911,6 +994,48 @@ export default function App() {
                     <Btn small kind="danger" onClick={() => adminDelete(ev.id)}><X size={13} /> Aflys</Btn>
                   </div>
                 </>
+              )}
+            </Card>
+          ))}
+        </div>
+
+        <div style={{ padding: "22px 4px 10px" }}><Eyebrow>Spillere ({players.length})</Eyebrow></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {ranked.map(p => (
+            <Card key={p.id} pad={14}>
+              {editPlayer?.id === p.id ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <input value={editPlayer.name} onChange={e => setEditPlayer({ ...editPlayer, name: e.target.value })} placeholder="Fulde navn" style={adminInput} />
+                  <input value={editPlayer.phone} onChange={e => setEditPlayer({ ...editPlayer, phone: e.target.value })} placeholder="Mobilnummer" style={adminInput} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: sans, fontSize: 13, color: C.muted, flex: 1 }}>Point</span>
+                    <input type="number" min="0" value={editPlayer.points} onChange={e => setEditPlayer({ ...editPlayer, points: e.target.value })} style={{ ...adminInput, width: 90, textAlign: "center" }} />
+                  </div>
+                  {String(editPlayer.points) !== String(p.points) && (
+                    <input value={editPlayer.reason} onChange={e => setEditPlayer({ ...editPlayer, reason: e.target.value })} placeholder="Årsag til pointændring (logges)" style={adminInput} />
+                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Btn small onClick={savePlayer} style={{ flex: 1 }}><Check size={14} /> Gem</Btn>
+                    <Btn small kind="ghost" onClick={() => setEditPlayer(null)}>Annullér</Btn>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Avatar name={p.name} size={36} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>{p.name}{p.role === "center_admin" && <Tag tone="mokka">admin</Tag>}{p.id === ME && <Tag>dig</Tag>}</div>
+                    <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginTop: 2 }}>{p.phone || "Intet nummer"} · {p.points} point · {p.wins} S / {p.losses} N</div>
+                  </div>
+                  <Btn small kind="soft" onClick={() => { setConfirmDelete(null); setEditPlayer({ id: p.id, name: p.name, phone: p.phone || "", points: String(p.points), reason: "" }); }}>Redigér</Btn>
+                  {p.id !== ME && (confirmDelete === p.id ? (
+                    <>
+                      <Btn small kind="danger" onClick={() => deletePlayer(p.id)}>Sikker?</Btn>
+                      <Btn small kind="ghost" onClick={() => setConfirmDelete(null)}>Nej</Btn>
+                    </>
+                  ) : (
+                    <Btn small kind="danger" onClick={() => { setEditPlayer(null); setConfirmDelete(p.id); }}><X size={13} /></Btn>
+                  ))}
+                </div>
               )}
             </Card>
           ))}
