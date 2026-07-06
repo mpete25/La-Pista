@@ -694,7 +694,7 @@ export default function App() {
     );
 
     if (md.stage === "score") {
-      const loserOptions = md.wScore === 7 ? [5, 6] : md.wScore === 6 ? [0, 1, 2, 3, 4, 5] : [];
+      const loserOptions = md.wScore === 7 ? [5, 6] : md.wScore === 6 ? [0, 1, 2, 3, 4] : [];
       const ok = md.winners && md.wScore !== null && md.lScore !== null;
       return (
         <div>
@@ -722,7 +722,7 @@ export default function App() {
               ? <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted }}>Vælg vinderholdets partier først</div>
               : <Chips options={loserOptions} value={md.lScore} onChange={v => setMatchday({ ...md, lScore: v })} />}
             {md.wScore === 7 && <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>Et sæt vundet 7–5 afgøres efter 5–5, og 7–6 betyder tiebreak – derfor kan taberholdet kun have 5 eller 6 partier.</div>}
-            {md.wScore === 6 && <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>Ved 6 vundne partier kan taberholdet have 0–5 – ellers ville sættet være gået i tiebreak.</div>}
+            {md.wScore === 6 && <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>Ved 6 vundne partier kan taberholdet have 0–4 – ved 5–5 spilles der videre til 7–5 eller 7–6.</div>}
           </Card>
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
             <Btn kind="ghost" onClick={() => setMatchday({ ...md, stage: "bane", winners: null, wScore: null, lScore: null })}><ChevronLeft size={16} /> Tilbage</Btn>

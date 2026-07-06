@@ -26,7 +26,9 @@ videre. Gyldige slutscorer for et sæt:
 - 7–5  (efter 5–5 spilles til 7)
 - 7–6  (tiebreak ved 6–6)
 Derfor: **vælger man 7 til vinderholdet, kan taberholdet kun have 5 eller 6.
-Vælger man 6, kan taberholdet kun have 0–5.** Taberens partier kan altså være 0.
+Vælger man 6, kan taberholdet kun have 0–4.** Taberens partier kan altså være 0.
+(6–5 er ALDRIG et gyldigt slutresultat — ved 5–5 spilles videre til 7–5 eller 7–6.
+Bekræftet af produktejeren 2026-07-06.)
 Denne validering skal håndhæves både i UI og i databasen (constraint/trigger).
 
 **Kampdags-format.** En kampdag varer **2 timer**. Det er TIDEN, ikke antal sæt, der
