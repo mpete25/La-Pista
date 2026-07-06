@@ -10,6 +10,7 @@ import {
   fetchPlayers, fetchEvents, fetchCourts, joinEventApi, leaveEventApi,
   createEventApi, cancelEventApi, updateCapacityApi, adminAddApi, adminRemoveApi,
   adminUpdatePlayerApi, adminSetPointsApi, adminDeletePlayerApi,
+  startMatchdayApi, fetchMatchdayApi, reportSetApi, finishCourtApi,
 } from "./lib/api.js";
 
 /* Demo mode: no Supabase configured -> the app runs on the in-memory seed data. */
@@ -370,19 +371,76 @@ export default function App() {
     { left: [c[0], c[2]], right: [c[1], c[3]] },
     { left: [c[0], c[3]], right: [c[1], c[2]] },
   ];
-  const startMatchday = (ev) => {
-    const sorted = ev.registered.map(id => playersById[id]).sort((a, b) => b.points - a.points);
-    const courts = []; for (let i = 0; i < sorted.length; i += 4) courts.push(sorted.slice(i, i + 4).map(p => p.id));
-    const myCourtIdx = courts.findIndex(c => c.includes(ME));
-    if (myCourtIdx === -1 || courts[myCourtIdx].length < 4) { notify("Din bane mangler spillere (4 kræves)"); return; }
-    setEventDetailId(null);
-    setMatchday({ eventId: ev.id, courts, myCourtIdx, stage: "lobby", round: 0, results: [], winners: null, wScore: null, lScore: null, startedAt: Date.now() });
-    setTab("kampdag");
+  const startMatchday = async (ev) => {
+    if (demo) {
+      const sorted = ev.registered.map(id => playersById[id]).sort((a, b) => b.points - a.points);
+      const courts = []; for (let i = 0; i < sorted.length; i += 4) courts.push(sorted.slice(i, i + 4).map(p => p.id));
+      const myCourtIdx = courts.findIndex(c => c.includes(ME));
+      if (myCourtIdx === -1 || courts[myCourtIdx].length < 4) { notify("Din bane mangler spillere (4 kræves)"); return; }
+      setEventDetailId(null);
+      setMatchday({ eventId: ev.id, courts, myCourtIdx, courtNo: myCourtIdx + 1, stage: "lobby", round: 0, results: [], winners: null, wScore: null, lScore: null, startedAt: Date.now() });
+      setTab("kampdag");
+      return;
+    }
+    try {
+      await startMatchdayApi(ev.id);
+      const { assignments, sets } = await fetchMatchdayApi(ev.id);
+      const courtNos = [...new Set(assignments.map(a => a.court_no))].sort((a, b) => a - b);
+      // Deterministic order (points desc, then id) so every device shows
+      // the same partner rotation.
+      const courts = courtNos.map(no => assignments
+        .filter(a => a.court_no === no)
+        .map(a => a.player_id)
+        .sort((a, b) => ((playersById[b]?.points || 0) - (playersById[a]?.points || 0)) || a.localeCompare(b)));
+      const myCourtIdx = courts.findIndex(c => c.includes(ME));
+      if (myCourtIdx === -1) {
+        notify("Du er ikke på en bane i dag – der var ikke plads til en hel bane (4 kræves)");
+        await reloadEvents();
+        return;
+      }
+      const courtNo = courtNos[myCourtIdx];
+      const results = sets.filter(s => s.court_no === courtNo).map(s => ({
+        round: s.set_no - 1,
+        left: s.team_a,
+        right: s.team_b,
+        score: [s.games_a, s.games_b],
+        winners: s.games_a > s.games_b ? s.team_a : s.team_b,
+      }));
+      setEventDetailId(null);
+      setMatchday({ eventId: ev.id, courts, myCourtIdx, courtNo, stage: results.length > 0 ? "bane" : "lobby", round: results.length, results, winners: null, wScore: null, lScore: null, startedAt: Date.now() });
+      setTab("kampdag");
+    } catch (e) {
+      console.error(e);
+      const m = String(e?.message || "");
+      notify(m.includes("TOO_EARLY") ? "Kampdagen kan først startes 15 min. før starttid"
+        : m.includes("NOT_ENOUGH_PLAYERS") ? "Der er ikke spillere nok til en hel bane (4 kræves)"
+        : m.includes("NOT_PARTICIPANT") ? "Du er ikke tilmeldt denne kampdag"
+        : "Kunne ikke starte kampdagen – prøv igen");
+    }
   };
   const currentPairing = (md) => pairings(md.courts[md.myCourtIdx])[md.round % 3];
-  const confirmSet = (md) => {
+  const confirmSet = async (md) => {
     const pr = currentPairing(md);
     const score = md.winners === "L" ? [md.wScore, md.lScore] : [md.lScore, md.wScore];
+    if (!demo) {
+      try {
+        await reportSetApi(md.eventId, md.courtNo, pr.left, pr.right, score[0], score[1]);
+      } catch (e) {
+        console.error(e);
+        // Likely a teammate reported the same set first — resync from the DB.
+        try {
+          const { sets } = await fetchMatchdayApi(md.eventId);
+          const results = sets.filter(s => s.court_no === md.courtNo).map(s => ({
+            round: s.set_no - 1, left: s.team_a, right: s.team_b,
+            score: [s.games_a, s.games_b],
+            winners: s.games_a > s.games_b ? s.team_a : s.team_b,
+          }));
+          setMatchday({ ...md, results, round: results.length, winners: null, wScore: null, lScore: null, stage: "bane" });
+          notify(results.length > md.results.length ? "Sættet var allerede indberettet af en medspiller" : "Kunne ikke gemme sættet – prøv igen");
+        } catch { notify("Kunne ikke gemme sættet – prøv igen"); }
+        return;
+      }
+    }
     const res = { round: md.round, left: pr.left, right: pr.right, score, winners: md.winners === "L" ? pr.left : pr.right };
     setMatchday({ ...md, results: [...md.results, res], round: md.round + 1, winners: null, wScore: null, lScore: null, stage: "bane" });
   };
@@ -402,7 +460,22 @@ export default function App() {
       return { pid, delta: Math.round(sum), E: Esum, S: Ssum, won, n: md.results.length };
     }).sort((a, b) => b.delta - a.delta);
   };
-  const applyMatchday = (md) => {
+  const applyMatchday = async (md) => {
+    if (!demo) {
+      try {
+        await finishCourtApi(md.eventId, md.courtNo);
+        await Promise.all([reloadPlayers(), reloadEvents()]);
+        setMatchday({ ...md, stage: "færdig" });
+        notify("Ranglisten er opdateret med dagens resultater");
+      } catch (e) {
+        console.error(e);
+        const m = String(e?.message || "");
+        notify(m.includes("ALREADY_FINISHED") ? "Banen er allerede afsluttet og point er tildelt"
+          : m.includes("NO_SETS") ? "Der er ingen sæt at beregne point for"
+          : "Kunne ikke afslutte kampdagen – prøv igen");
+      }
+      return;
+    }
     const rows = dayPoints(md);
     setPlayers(ps => ps.map(p => {
       const row = rows.find(r => r.pid === p.id); if (!row) return p;

@@ -85,6 +85,41 @@ export async function leaveEventApi(eventId) {
   if (error) throw error;
 }
 
+/* ---- Matchday engine (server-side court split, sets and points) ---- */
+
+export async function startMatchdayApi(eventId) {
+  const { error } = await supabase.rpc("start_matchday", { p_event_id: eventId });
+  if (error) throw error;
+}
+
+export async function fetchMatchdayApi(eventId) {
+  const [assignsRes, setsRes] = await Promise.all([
+    supabase.from("court_assignments").select("court_no, player_id").eq("event_id", eventId).order("court_no"),
+    supabase.from("sets").select("court_no, set_no, team_a, team_b, games_a, games_b").eq("event_id", eventId).order("set_no"),
+  ]);
+  if (assignsRes.error) throw assignsRes.error;
+  if (setsRes.error) throw setsRes.error;
+  return { assignments: assignsRes.data, sets: setsRes.data };
+}
+
+export async function reportSetApi(eventId, courtNo, teamA, teamB, gamesA, gamesB) {
+  const { data, error } = await supabase.rpc("report_set", {
+    p_event_id: eventId,
+    p_court_no: courtNo,
+    p_team_a: teamA,
+    p_team_b: teamB,
+    p_games_a: gamesA,
+    p_games_b: gamesB,
+  });
+  if (error) throw error;
+  return data; // set number
+}
+
+export async function finishCourtApi(eventId, courtNo) {
+  const { error } = await supabase.rpc("finish_court", { p_event_id: eventId, p_court_no: courtNo });
+  if (error) throw error;
+}
+
 /* ---- Admin (RLS enforces center_admin role server-side) ---- */
 
 export async function createEventApi({ title, date, time, capacity, centerId, courtIds = [] }) {
