@@ -2,25 +2,17 @@ import React, { useState, useMemo, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { Trophy, MessageCircle, Calendar, User, ChevronRight, ChevronLeft, Send, Plus, Minus, X, Check, Clock, TrendingUp, Crown, Shield, Smartphone, ArrowLeft, Swords } from "lucide-react";
 import { CENTER } from "./config/center.js";
+import { C, shadow, softShadow, serif, sans } from "./theme.js";
+import { supabase } from "./lib/supabase.js";
+import { useAuth } from "./hooks/useAuth.js";
+import AuthScreen from "./components/AuthScreen.jsx";
+import {
+  fetchPlayers, fetchEvents, joinEventApi, leaveEventApi,
+  createEventApi, cancelEventApi, updateCapacityApi, adminAddApi, adminRemoveApi,
+} from "./lib/api.js";
 
-/* ================= PALETTE / DESIGN TOKENS ================= */
-const C = {
-  sand: "#F6F1E8",        // page background
-  cream: "#FFFDF8",       // cards
-  line: "#E9DECB",        // borders
-  beige: "#EFE6D6",       // muted fills
-  mokka: "#7A5C43",       // primary
-  mokkaDeep: "#5E4632",
-  espresso: "#2E2519",    // text
-  muted: "#96866F",       // secondary text
-  olive: "#7D8A5F",       // positive
-  clay: "#B4694E",        // negative (sparingt)
-  gold: "#B08D57",
-};
-const shadow = "0 1px 2px rgba(46,37,25,.05), 0 10px 30px rgba(46,37,25,.07)";
-const softShadow = "0 1px 2px rgba(46,37,25,.04), 0 4px 14px rgba(46,37,25,.05)";
-const serif = "'Fraunces', Georgia, serif";
-const sans = "'Outfit', ui-sans-serif, system-ui, sans-serif";
+/* Demo mode: no Supabase configured -> the app runs on the in-memory seed data. */
+const IS_DEMO = !supabase;
 
 /* ================= HELPERS ================= */
 const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -73,7 +65,7 @@ const seedPlayers = () => NAMES.map(([name, pts], i) => {
   return { id: "p" + i, name, points: pts, wins: setsWon + Math.floor(mulberry32(i)() * 10), losses: setsLost + Math.floor(mulberry32(i + 5)() * 10), phone: "+45 2" + String(1000000 + i * 13579).slice(0, 7), history: entries, joined: "2025-0" + (1 + (i % 9)) + "-12" };
 });
 
-const TODAY = "2026-07-03";
+const TODAY = IS_DEMO ? "2026-07-03" : new Date().toLocaleDateString("sv-SE");
 const seedEvents = (P) => {
   const ids = (a, b) => P.slice(a, b).map(p => p.id);
   return [
@@ -187,9 +179,11 @@ const Chips = ({ options, value, onChange }) => (
 
 /* ================= APP ================= */
 export default function App() {
-  const [players, setPlayers] = useState(seedPlayers);
-  const [events, setEvents] = useState(() => seedEvents(seedPlayers()));
-  const [threads, setThreads] = useState(seedThreads);
+  const demo = IS_DEMO;
+  const { session, loading: authLoading } = useAuth();
+  const [players, setPlayers] = useState(demo ? seedPlayers : []);
+  const [events, setEvents] = useState(demo ? () => seedEvents(seedPlayers()) : []);
+  const [threads, setThreads] = useState(demo ? seedThreads : () => ({}));
   const [smsLog, setSmsLog] = useState([]);
   const [tab, setTab] = useState("rangliste");
   const [viewPlayerId, setViewPlayerId] = useState(null);
@@ -205,11 +199,24 @@ export default function App() {
   const [clock, setClock] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setClock(Date.now()), 15000); return () => clearInterval(t); }, []);
 
-  const ME = "p7"; // Mads Kristensen – demo-login
+  const ME = demo ? "p7" /* Mads Kristensen – demo-login */ : session?.user?.id;
   const playersById = useMemo(() => Object.fromEntries(players.map(p => [p.id, p])), [players]);
   const ranked = useMemo(() => [...players].sort((a, b) => b.points - a.points), [players]);
   const rankOf = (id) => ranked.findIndex(p => p.id === id) + 1;
   const me = playersById[ME];
+  const isAdmin = demo ? admin : me?.role === "center_admin";
+
+  /* ---- Real data (Supabase) ---- */
+  const reloadPlayers = async () => setPlayers(await fetchPlayers());
+  const reloadEvents = async () => setEvents(await fetchEvents());
+  useEffect(() => {
+    if (demo || !session) return;
+    let cancelled = false;
+    Promise.all([fetchPlayers(), fetchEvents()])
+      .then(([pl, ev]) => { if (!cancelled) { setPlayers(pl); setEvents(ev); } })
+      .catch((e) => { console.error("Data load failed:", e); if (!cancelled) setToast("Kunne ikke hente data – prøv at genindlæse"); });
+    return () => { cancelled = true; };
+  }, [demo, session]);
 
   const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
   const sendSMS = (playerId, text) => {
@@ -227,19 +234,39 @@ export default function App() {
     }
     return ev;
   };
-  const joinEvent = (evId) => setEvents(es => es.map(ev => {
-    if (ev.id !== evId) return ev;
-    if (ev.registered.includes(ME) || ev.waitlist.includes(ME)) return ev;
-    if (ev.registered.length < ev.capacity) { notify("Du er tilmeldt " + ev.title); return { ...ev, registered: [...ev.registered, ME] }; }
-    notify("Begivenheden er fuld – du står nu på ventelisten"); return { ...ev, waitlist: [...ev.waitlist, ME] };
-  }));
-  const leaveEvent = (evId) => setEvents(es => es.map(ev => {
-    if (ev.id !== evId) return ev;
-    if (ev.waitlist.includes(ME)) { notify("Du er fjernet fra ventelisten"); return { ...ev, waitlist: ev.waitlist.filter(x => x !== ME) }; }
-    if (!ev.registered.includes(ME)) return ev;
-    notify("Du er afmeldt " + ev.title);
-    return openSlotFollowUp({ ...ev, registered: ev.registered.filter(x => x !== ME) });
-  }));
+  const joinEvent = async (evId) => {
+    if (demo) {
+      setEvents(es => es.map(ev => {
+        if (ev.id !== evId) return ev;
+        if (ev.registered.includes(ME) || ev.waitlist.includes(ME)) return ev;
+        if (ev.registered.length < ev.capacity) { notify("Du er tilmeldt " + ev.title); return { ...ev, registered: [...ev.registered, ME] }; }
+        notify("Begivenheden er fuld – du står nu på ventelisten"); return { ...ev, waitlist: [...ev.waitlist, ME] };
+      }));
+      return;
+    }
+    try {
+      const status = await joinEventApi(evId);
+      notify(status === "registered" ? "Du er tilmeldt" : "Begivenheden er fuld – du står nu på ventelisten");
+      await reloadEvents();
+    } catch (e) { console.error(e); notify("Tilmelding fejlede – prøv igen"); }
+  };
+  const leaveEvent = async (evId) => {
+    if (demo) {
+      setEvents(es => es.map(ev => {
+        if (ev.id !== evId) return ev;
+        if (ev.waitlist.includes(ME)) { notify("Du er fjernet fra ventelisten"); return { ...ev, waitlist: ev.waitlist.filter(x => x !== ME) }; }
+        if (!ev.registered.includes(ME)) return ev;
+        notify("Du er afmeldt " + ev.title);
+        return openSlotFollowUp({ ...ev, registered: ev.registered.filter(x => x !== ME) });
+      }));
+      return;
+    }
+    try {
+      await leaveEventApi(evId);
+      notify("Du er afmeldt");
+      await reloadEvents();
+    } catch (e) { console.error(e); notify("Afmelding fejlede – prøv igen"); }
+  };
   const acceptOffer = (evId) => setEvents(es => es.map(ev => {
     if (ev.id !== evId || !ev.pendingOffer) return ev;
     notify(playersById[ev.pendingOffer].name + " har taget pladsen via SMS-linket");
@@ -247,29 +274,65 @@ export default function App() {
   }));
 
   /* ---- Admin ---- */
-  const adminRemove = (evId, pid) => setEvents(es => es.map(ev => ev.id !== evId ? ev : openSlotFollowUp({ ...ev, registered: ev.registered.filter(x => x !== pid), waitlist: ev.waitlist.filter(x => x !== pid) })));
-  const adminAdd = (evId, pid) => setEvents(es => es.map(ev => {
-    if (ev.id !== evId || !pid || ev.registered.includes(pid)) return ev;
-    if (ev.registered.length >= ev.capacity) { notify("Fuldt – udvid antal pladser først"); return ev; }
-    return { ...ev, registered: [...ev.registered, pid], waitlist: ev.waitlist.filter(x => x !== pid) };
-  }));
-  const adminCapacity = (evId, d) => setEvents(es => es.map(ev => {
-    if (ev.id !== evId) return ev;
-    const cap = Math.max(4, ev.capacity + d);
-    let next = { ...ev, capacity: cap };
-    if (d > 0 && next.registered.length < cap) next = openSlotFollowUp(next);
-    return next;
-  }));
-  const adminDelete = (evId) => setEvents(es => {
-    const ev = es.find(e => e.id === evId);
-    [...ev.registered, ...ev.waitlist].forEach(pid => sendSMS(pid, `Hej ${firstName(playersById[pid].name)}. ${ev.title} ${fmtDate(ev.date)} kl. ${ev.time} er desværre aflyst pga. for få tilmeldte. Vi ses næste gang!`));
-    notify("Begivenhed aflyst – SMS sendt til " + (ev.registered.length + ev.waitlist.length) + " spillere");
-    return es.filter(e => e.id !== evId);
-  });
-  const adminCreate = () => {
+  const adminRemove = async (evId, pid) => {
+    if (demo) {
+      setEvents(es => es.map(ev => ev.id !== evId ? ev : openSlotFollowUp({ ...ev, registered: ev.registered.filter(x => x !== pid), waitlist: ev.waitlist.filter(x => x !== pid) })));
+      return;
+    }
+    try { await adminRemoveApi(evId, pid); await reloadEvents(); }
+    catch (e) { console.error(e); notify("Kunne ikke fjerne spilleren"); }
+  };
+  const adminAdd = async (evId, pid) => {
+    if (demo) {
+      setEvents(es => es.map(ev => {
+        if (ev.id !== evId || !pid || ev.registered.includes(pid)) return ev;
+        if (ev.registered.length >= ev.capacity) { notify("Fuldt – udvid antal pladser først"); return ev; }
+        return { ...ev, registered: [...ev.registered, pid], waitlist: ev.waitlist.filter(x => x !== pid) };
+      }));
+      return;
+    }
+    if (!pid) return;
+    try { await adminAddApi(evId, pid, me?.centerId); await reloadEvents(); }
+    catch (e) { console.error(e); notify("Kunne ikke tilføje spilleren"); }
+  };
+  const adminCapacity = async (evId, d) => {
+    if (demo) {
+      setEvents(es => es.map(ev => {
+        if (ev.id !== evId) return ev;
+        const cap = Math.max(4, ev.capacity + d);
+        let next = { ...ev, capacity: cap };
+        if (d > 0 && next.registered.length < cap) next = openSlotFollowUp(next);
+        return next;
+      }));
+      return;
+    }
+    const ev = events.find(e => e.id === evId);
+    if (!ev) return;
+    try { await updateCapacityApi(evId, Math.max(4, ev.capacity + d)); await reloadEvents(); }
+    catch (e) { console.error(e); notify("Kunne ikke ændre antal pladser"); }
+  };
+  const adminDelete = async (evId) => {
+    if (demo) {
+      setEvents(es => {
+        const ev = es.find(e => e.id === evId);
+        [...ev.registered, ...ev.waitlist].forEach(pid => sendSMS(pid, `Hej ${firstName(playersById[pid].name)}. ${ev.title} ${fmtDate(ev.date)} kl. ${ev.time} er desværre aflyst pga. for få tilmeldte. Vi ses næste gang!`));
+        notify("Begivenhed aflyst – SMS sendt til " + (ev.registered.length + ev.waitlist.length) + " spillere");
+        return es.filter(e => e.id !== evId);
+      });
+      return;
+    }
+    try { await cancelEventApi(evId); notify("Begivenhed aflyst"); await reloadEvents(); }
+    catch (e) { console.error(e); notify("Kunne ikke aflyse begivenheden"); }
+  };
+  const adminCreate = async () => {
     if (!newEvent.date || !newEvent.time) return;
-    setEvents(es => [...es, { id: "e" + Date.now(), ...newEvent, capacity: Number(newEvent.capacity) || 16, registered: [], waitlist: [], status: "åben", pendingOffer: null }].sort((a, b) => a.date.localeCompare(b.date)));
-    notify("Begivenhed oprettet");
+    if (demo) {
+      setEvents(es => [...es, { id: "e" + Date.now(), ...newEvent, capacity: Number(newEvent.capacity) || 16, registered: [], waitlist: [], status: "åben", pendingOffer: null }].sort((a, b) => a.date.localeCompare(b.date)));
+      notify("Begivenhed oprettet");
+      return;
+    }
+    try { await createEventApi({ ...newEvent, centerId: me?.centerId }); notify("Begivenhed oprettet"); await reloadEvents(); }
+    catch (e) { console.error(e); notify("Kunne ikke oprette begivenheden"); }
   };
 
   /* ---- Kampdag-motor ---- */
@@ -371,6 +434,7 @@ export default function App() {
             <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, marginTop: 4 }}>Medlem siden {new Date(p.joined).toLocaleDateString("da-DK", { month: "long", year: "numeric" })}</div>
           </div>
           {!own && <Btn small kind="soft" onClick={() => { setActiveThread(p.id); setTab("beskeder"); }}><MessageCircle size={15} /> Besked</Btn>}
+          {own && !demo && <Btn small kind="ghost" onClick={() => supabase.auth.signOut()}>Log ud</Btn>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
           {[["# " + rankOf(p.id), "Placering"], [p.points, "Point"], [winrate + "%", "Sejrsrate"]].map(([v, l]) => (
@@ -771,7 +835,15 @@ export default function App() {
   };
 
   const renderAdmin = () => {
-    if (!admin) return (
+    if (!demo && !isAdmin) return (
+      <div style={{ padding: "40px 20px", textAlign: "center" }}>
+        <button onClick={() => setTab("rangliste")} style={{ background: "none", border: "none", color: C.mokka, fontFamily: sans, fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", margin: "0 auto 26px" }}><ArrowLeft size={16} /> Tilbage til appen</button>
+        <div style={{ width: 70, height: 70, borderRadius: 999, background: C.beige, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}><Shield size={30} color={C.mokka} /></div>
+        <H size={24}>Centeradministration</H>
+        <p style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, margin: "8px 0 18px", lineHeight: 1.55 }}>Din konto har ikke administrator-rettigheder. Kontakt centeret, hvis du mener det er en fejl.</p>
+      </div>
+    );
+    if (demo && !admin) return (
       <div style={{ padding: "40px 20px", textAlign: "center" }}>
         <button onClick={() => setTab("rangliste")} style={{ background: "none", border: "none", color: C.mokka, fontFamily: sans, fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", margin: "0 auto 26px" }}><ArrowLeft size={16} /> Tilbage til appen</button>
         <div style={{ width: 70, height: 70, borderRadius: 999, background: C.beige, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}><Shield size={30} color={C.mokka} /></div>
@@ -788,7 +860,7 @@ export default function App() {
       <div>
         <div style={{ padding: "26px 4px 16px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div><Eyebrow>Backend · centeradmin</Eyebrow><H size={28} style={{ marginTop: 6 }}>Administration</H></div>
-          <div style={{ display: "flex", gap: 6 }}><Btn small kind="ghost" onClick={() => setTab("rangliste")}>Til appen</Btn><Btn small kind="ghost" onClick={() => { setAdmin(false); setAdminCreds({ email: "", pass: "" }); }}>Log ud</Btn></div>
+          <div style={{ display: "flex", gap: 6 }}><Btn small kind="ghost" onClick={() => setTab("rangliste")}>Til appen</Btn>{demo && <Btn small kind="ghost" onClick={() => { setAdmin(false); setAdminCreds({ email: "", pass: "" }); }}>Log ud</Btn>}</div>
         </div>
 
         <Card>
@@ -870,6 +942,14 @@ export default function App() {
     { id: "profil", label: "Profil", icon: User },
   ];
 
+  /* ---- Auth gate (real mode) ---- */
+  const centerScreen = (msg) => (
+    <div style={{ minHeight: "100vh", background: C.sand, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans, fontSize: 14, color: C.muted }}>{msg}</div>
+  );
+  if (!demo && authLoading) return centerScreen("Indlæser…");
+  if (!demo && !session) return <AuthScreen />;
+  if (!demo && !me) return centerScreen("Henter din profil…");
+
   return (
     <div style={{ minHeight: "100vh", background: C.sand, fontFamily: sans, color: C.espresso }}>
       <style>{`
@@ -887,7 +967,7 @@ export default function App() {
         <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Logo />
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {admin && <Tag tone="mokka"><Shield size={11} style={{ verticalAlign: "-1.5px", marginRight: 4 }} />Admin</Tag>}
+            {isAdmin && <Tag tone="mokka"><Shield size={11} style={{ verticalAlign: "-1.5px", marginRight: 4 }} />Admin</Tag>}
             <div onClick={() => { setViewPlayerId(null); setTab("profil"); }} style={{ cursor: "pointer" }}><Avatar name={me.name} size={36} ring /></div>
           </div>
         </div>
