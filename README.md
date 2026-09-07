@@ -26,6 +26,10 @@ multiple centres.
 - **Starting points.** New players start at **500**.
 - **Level matching.** Registered players are sorted by points and split into courts of 4
   (closest four together); leftovers go on a waiting list / bye.
+- **Waitlist.** A freed spot is offered to the player who has waited longest, one at a
+  time. The offer holds the spot for six hours (never past the start), then moves on.
+  A confirmed spot cannot be self-cancelled within 24h of the start — the player calls
+  the center and an admin frees it.
 
 ## Points model
 
@@ -55,12 +59,55 @@ npm run dev                  # run locally
 npm run build                # production build
 ```
 
-Supabase (once configured):
+Supabase:
 
 ```bash
-npx supabase start           # local DB
+npx supabase start           # local DB (needs Docker)
 npx supabase db push         # apply migrations
+npx supabase functions deploy send-sms
 ```
+
+## Which center am I looking at?
+
+Every center is a tenant, and the app resolves which one from the URL:
+
+1. `?center=<slug>` — handy in development
+2. the subdomain — `padel-lounge.lapista.dk` → `padel-lounge`
+3. `VITE_DEFAULT_CENTER_SLUG` — for a single-center deployment
+
+The slug is looked up in the `centers` table. Anonymous visitors can read center
+branding (slug, name, city) and nothing else, which is what lets the sign-up screen
+name the center before anybody has a session.
+
+## SMS
+
+Notifications are queued in `sms_outbox` by the database, never sent from the client.
+The `send-sms` Edge Function drains the queue: it first releases expired waitlist
+offers (so their replacements go out in the same run), then sends what is pending
+through GatewayAPI or inMobile (`SMS_PROVIDER`).
+
+Without `SMS_GATEWAY_API_KEY` the function sends nothing and just reports what is
+queued, so it is safe to run before the gateway account exists. Schedule it every few
+minutes and authenticate with the shared `CRON_SECRET`:
+
+```bash
+npx supabase secrets set SMS_GATEWAY_API_KEY=... SMS_GATEWAY_SENDER="La Pista" CRON_SECRET=...
+curl -X POST "$SUPABASE_URL/functions/v1/send-sms" -H "x-cron-secret: $CRON_SECRET"
+```
+
+## Tests
+
+```bash
+npm test          # unit tests (vitest)
+npm run test:db   # applies every migration to a scratch database, then the SQL suite
+```
+
+`npm run test:db` needs a reachable PostgreSQL 16 server and `psql`; point it at one
+with `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`. It does not need the Supabase container
+stack — `supabase/tests/00_shim.sql` supplies the API roles, `auth.users` and
+`auth.uid()`, so the policies are exercised as the real `anon` and `authenticated`
+roles. The suite covers the domain rules, tenant isolation, the waitlist offer flow,
+messages and the public center lookup. CI runs all of it on every push.
 
 ## Environment variables
 
