@@ -14,6 +14,7 @@ import {
   startMatchdayApi, fetchMatchdayApi, reportSetApi, finishCourtApi,
   acceptOfferApi, declineOfferApi, fetchPlayerSetsApi,
   fetchThreadsApi, sendMessageApi, markThreadReadApi, subscribeToMessages,
+  fetchSmsLogApi,
 } from "./lib/api.js";
 
 /* Demo mode: no Supabase configured -> the app runs on the in-memory seed data. */
@@ -273,6 +274,15 @@ export default function App() {
       setThreads((t) => ({ ...t, [fromId]: [...(t[fromId] || []), msg] }));
     });
   }, [demo, ME]);
+
+  useEffect(() => {
+    if (demo || !isAdmin || tab !== "admin") return;
+    let cancelled = false;
+    fetchSmsLogApi()
+      .then(rows => { if (!cancelled) setSmsLog(rows); })
+      .catch(e => console.error("Could not load the SMS log:", e));
+    return () => { cancelled = true; };
+  }, [demo, isAdmin, tab, events]);
 
   const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
 
@@ -1237,15 +1247,19 @@ export default function App() {
           ))}
         </div>
 
-        <div style={{ padding: "22px 4px 10px" }}><Eyebrow>SMS-log (simuleret gateway)</Eyebrow></div>
+        <div style={{ padding: "22px 4px 10px" }}><Eyebrow>SMS-log {demo ? "(simuleret gateway)" : "· gateway-kø"}</Eyebrow></div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {smsLog.length === 0 && <Card pad={16} style={{ background: C.beige, border: "none", textAlign: "center", fontFamily: sans, fontSize: 13, color: C.mokkaDeep }}>Ingen SMS'er sendt endnu. Afmeld en spiller fra en fuld begivenhed – eller aflys en dag – for at se notifikationer.</Card>}
           {smsLog.map((s, i) => (
-            <Card key={i} pad={14} style={{ display: "flex", gap: 12 }}>
+            <Card key={s.id || i} pad={14} style={{ display: "flex", gap: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: 12, background: C.beige, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Smartphone size={16} color={C.mokka} /></div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted }}>Til {s.name} · {s.to} · {s.time}</div>
+                <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span>Til {s.name} · {s.to} · {s.time}</span>
+                  {s.status && <Tag tone={s.failed ? "clay" : s.status === "sendt" ? "olive" : "gold"}>{s.status}</Tag>}
+                </div>
                 <div style={{ fontFamily: sans, fontSize: 13.5, color: C.espresso, marginTop: 4, lineHeight: 1.5 }}>{s.text}</div>
+                {s.error && <div style={{ fontFamily: sans, fontSize: 11.5, color: C.clay, marginTop: 4 }}>{s.error}</div>}
               </div>
             </Card>
           ))}

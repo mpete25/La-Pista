@@ -321,3 +321,28 @@ export function subscribeToMessages(meId, onMessage) {
     .subscribe();
   return () => supabase.removeChannel(channel);
 }
+
+/* ---- SMS log (admins only; RLS enforces that) ---- */
+
+const SMS_STATUS = { pending: "i kø", sent: "sendt", failed: "fejlede" };
+
+export async function fetchSmsLogApi(limit = 50) {
+  const { data, error } = await supabase
+    .from("sms_outbox")
+    .select("id, phone, body, kind, status, error, created_at, sent_at, profiles:player_id(full_name)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    to: row.phone,
+    name: row.profiles?.full_name || "Ukendt spiller",
+    text: row.body,
+    status: SMS_STATUS[row.status] || row.status,
+    failed: row.status === "failed",
+    error: row.error,
+    time: new Date(row.sent_at || row.created_at).toLocaleString("da-DK", {
+      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+    }),
+  }));
+}
