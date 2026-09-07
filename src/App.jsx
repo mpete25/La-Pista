@@ -212,6 +212,7 @@ export default function App() {
   const [center, setCenter] = useState(demo ? DEMO_CENTER : null);
   const [centerError, setCenterError] = useState(null);
   const [histSets, setHistSets] = useState({});
+  const [dataLoaded, setDataLoaded] = useState(false);
   useEffect(() => { const t = setInterval(() => setClock(Date.now()), 15000); return () => clearInterval(t); }, []);
 
   const ME = demo ? "p7" /* Mads Kristensen – demo-login */ : session?.user?.id;
@@ -262,7 +263,8 @@ export default function App() {
     let cancelled = false;
     Promise.all([fetchPlayers(), fetchEvents(), fetchCourts(), fetchThreadsApi(session.user.id)])
       .then(([pl, ev, co, th]) => { if (!cancelled) { setPlayers(pl); setEvents(ev); setCourtsList(co); setThreads(th); } })
-      .catch((e) => { console.error("Data load failed:", e); if (!cancelled) setToast("Kunne ikke hente data – prøv at genindlæse"); });
+      .catch((e) => { console.error("Data load failed:", e); if (!cancelled) setToast("Kunne ikke hente data – prøv at genindlæse"); })
+      .finally(() => { if (!cancelled) setDataLoaded(true); });
     return () => { cancelled = true; };
   }, [demo, session]);
 
@@ -1285,7 +1287,9 @@ export default function App() {
   if (!demo && !center) return centerScreen("Finder dit padelcenter…");
   if (!demo && authLoading) return centerScreen("Indlæser…");
   if (!demo && !session) return <AuthScreen center={center} />;
-  if (!demo && !me) return centerScreen("Henter din profil…");
+  if (!demo && !me) return centerScreen(dataLoaded
+    ? `Din bruger er logget ind, men har ingen spillerprofil hos ${center.name}. Kontakt centeret, så de kan oprette dig.`
+    : "Henter din profil…");
 
   return (
     <div style={{ minHeight: "100vh", background: C.sand, fontFamily: sans, color: C.espresso }}>
