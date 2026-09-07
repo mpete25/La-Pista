@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { Trophy, MessageCircle, Calendar, User, ChevronRight, ChevronLeft, Send, Plus, Minus, X, Check, Clock, TrendingUp, Crown, Shield, Smartphone, ArrowLeft, Swords } from "lucide-react";
-import { CENTER } from "./config/center.js";
+import { DEMO_CENTER, PLATFORM } from "./config/center.js";
+import { centerSlugFromLocation, fetchCenterBySlug } from "./lib/center.js";
 import { C, shadow, softShadow, serif, sans } from "./theme.js";
 import { supabase } from "./lib/supabase.js";
 import { useAuth } from "./hooks/useAuth.js";
@@ -11,6 +12,8 @@ import {
   createEventApi, cancelEventApi, updateCapacityApi, adminAddApi, adminRemoveApi,
   adminUpdatePlayerApi, adminSetPointsApi, adminDeletePlayerApi,
   startMatchdayApi, fetchMatchdayApi, reportSetApi, finishCourtApi,
+  acceptOfferApi, declineOfferApi, fetchPlayerSetsApi,
+  fetchThreadsApi, sendMessageApi, markThreadReadApi, subscribeToMessages,
 } from "./lib/api.js";
 
 /* Demo mode: no Supabase configured -> the app runs on the in-memory seed data. */
@@ -22,6 +25,7 @@ const adminInput = { fontFamily: "'Outfit', ui-sans-serif, system-ui, sans-serif
 const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const fmtDate = (iso) => { const d = new Date(iso + "T12:00:00"); return d.toLocaleDateString("da-DK", { weekday: "short", day: "numeric", month: "short" }); };
 const fmtDateLong = (iso) => { const d = new Date(iso + "T12:00:00"); return d.toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long" }); };
+const fmtDeadline = (iso) => new Date(iso).toLocaleString("da-DK", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const shortDate = (iso) => { const d = new Date(iso + "T12:00:00"); return d.getDate() + "/" + (d.getMonth() + 1); };
 const initials = (name) => name.split(" ").map(n => n[0]).slice(0, 2).join("");
 const firstName = (name) => name.split(" ")[0];
@@ -127,7 +131,7 @@ const Tag = ({ children, tone = "beige" }) => {
   return <span style={{ background: bg, color: col, fontFamily: sans, fontSize: 11.5, fontWeight: 600, padding: "4px 10px", borderRadius: 999, letterSpacing: ".04em", whiteSpace: "nowrap" }}>{children}</span>;
 };
 
-const Logo = ({ light = false }) => (
+const Logo = ({ light = false, center }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
     <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden>
       <defs><linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={C.gold} /><stop offset="1" stopColor={C.mokka} /></linearGradient></defs>
@@ -136,8 +140,8 @@ const Logo = ({ light = false }) => (
       <line x1="7" y1="24" x2="23" y2="24" stroke={light ? C.cream : C.mokka} strokeWidth="2" strokeLinecap="round" opacity=".55" />
     </svg>
     <div>
-      <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 19, letterSpacing: ".06em", color: light ? C.cream : C.espresso, lineHeight: 1, textTransform: "uppercase" }}>{CENTER.name}</div>
-      <div style={{ fontFamily: sans, fontSize: 9.5, letterSpacing: ".3em", color: light ? C.cream + "bb" : C.muted, textTransform: "uppercase", marginTop: 2 }}>{CENTER.city} · Rangliste</div>
+      <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 19, letterSpacing: ".06em", color: light ? C.cream : C.espresso, lineHeight: 1, textTransform: "uppercase" }}>{center.name}</div>
+      <div style={{ fontFamily: sans, fontSize: 9.5, letterSpacing: ".3em", color: light ? C.cream + "bb" : C.muted, textTransform: "uppercase", marginTop: 2 }}>{center.city} · Rangliste</div>
     </div>
   </div>
 );
@@ -204,6 +208,9 @@ export default function App() {
   const [eventDetailId, setEventDetailId] = useState(null);
   const [expandedHist, setExpandedHist] = useState(null);
   const [clock, setClock] = useState(Date.now());
+  const [center, setCenter] = useState(demo ? DEMO_CENTER : null);
+  const [centerError, setCenterError] = useState(null);
+  const [histSets, setHistSets] = useState({});
   useEffect(() => { const t = setInterval(() => setClock(Date.now()), 15000); return () => clearInterval(t); }, []);
 
   const ME = demo ? "p7" /* Mads Kristensen – demo-login */ : session?.user?.id;
@@ -213,6 +220,29 @@ export default function App() {
   const me = playersById[ME];
   const isAdmin = demo ? admin : me?.role === "center_admin";
 
+  /* ---- Tenant: which center is this? Resolved from the URL, then read
+     from the database, so one deployment serves every center. ---- */
+  useEffect(() => {
+    if (demo) return;
+    const slug = centerSlugFromLocation();
+    if (!slug) {
+      setCenterError("Ingen padelcenter angivet i adressen.");
+      return;
+    }
+    let cancelled = false;
+    fetchCenterBySlug(slug)
+      .then((c) => {
+        if (cancelled) return;
+        if (c) setCenter(c);
+        else setCenterError(`Vi kunne ikke finde et padelcenter der hedder “${slug}”.`);
+      })
+      .catch((e) => {
+        console.error("Center lookup failed:", e);
+        if (!cancelled) setCenterError("Kunne ikke hente centeret – prøv at genindlæse.");
+      });
+    return () => { cancelled = true; };
+  }, [demo]);
+
   /* ---- Real data (Supabase) ---- */
   const reloadPlayers = async () => setPlayers(await fetchPlayers());
   const reloadEvents = async () => setEvents(await fetchEvents());
@@ -220,18 +250,40 @@ export default function App() {
   /* DOMAIN RULE: confirmed spots cannot self-cancel within 24h of start —
      the player must contact the center. Enforced in the DB too (leave_event). */
   const nowMs = () => (demo ? new Date(TODAY + "T12:00:00").getTime() : Date.now());
+  /* A match day can be entered while it is open and while it is running:
+     the first player through the door locks the court split, the rest join
+     the day already in progress. */
+  const isPlayable = (ev) => ev.status === "åben" || ev.status === "i gang";
   const eventStartMs = (ev) => new Date(`${ev.date}T${ev.time || "00:00"}:00`).getTime();
   const canSelfCancel = (ev) => eventStartMs(ev) - nowMs() > 24 * 60 * 60 * 1000;
   useEffect(() => {
     if (demo || !session) return;
     let cancelled = false;
-    Promise.all([fetchPlayers(), fetchEvents(), fetchCourts()])
-      .then(([pl, ev, co]) => { if (!cancelled) { setPlayers(pl); setEvents(ev); setCourtsList(co); } })
+    Promise.all([fetchPlayers(), fetchEvents(), fetchCourts(), fetchThreadsApi(session.user.id)])
+      .then(([pl, ev, co, th]) => { if (!cancelled) { setPlayers(pl); setEvents(ev); setCourtsList(co); setThreads(th); } })
       .catch((e) => { console.error("Data load failed:", e); if (!cancelled) setToast("Kunne ikke hente data – prøv at genindlæse"); });
     return () => { cancelled = true; };
   }, [demo, session]);
 
+  /* Incoming messages arrive over realtime, so an open conversation
+     updates without a reload. */
+  useEffect(() => {
+    if (demo || !ME) return;
+    return subscribeToMessages(ME, (fromId, msg) => {
+      setThreads((t) => ({ ...t, [fromId]: [...(t[fromId] || []), msg] }));
+    });
+  }, [demo, ME]);
+
   const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
+
+  const openThread = async (otherId) => {
+    setActiveThread(otherId);
+    if (demo || !ME) return;
+    const hasUnread = (threads[otherId] || []).some(m => m.unread);
+    if (!hasUnread) return;
+    setThreads(t => ({ ...t, [otherId]: (t[otherId] || []).map(m => ({ ...m, unread: false })) }));
+    try { await markThreadReadApi(ME, otherId); } catch (e) { console.error(e); }
+  };
   const sendSMS = (playerId, text) => {
     const p = playersById[playerId];
     setSmsLog(l => [{ to: p.phone, name: p.name, text, time: new Date().toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }) }, ...l]);
@@ -290,11 +342,39 @@ export default function App() {
         : "Afmelding fejlede – prøv igen");
     }
   };
-  const acceptOffer = (evId) => setEvents(es => es.map(ev => {
-    if (ev.id !== evId || !ev.pendingOffer) return ev;
-    notify(playersById[ev.pendingOffer].name + " har taget pladsen via SMS-linket");
-    return { ...ev, registered: [...ev.registered, ev.pendingOffer], pendingOffer: null };
-  }));
+  const acceptOffer = async (evId) => {
+    if (demo) {
+      setEvents(es => es.map(ev => {
+        if (ev.id !== evId || !ev.pendingOffer) return ev;
+        notify(playersById[ev.pendingOffer].name + " har taget pladsen via SMS-linket");
+        return { ...ev, registered: [...ev.registered, ev.pendingOffer], pendingOffer: null };
+      }));
+      return;
+    }
+    try {
+      await acceptOfferApi(evId);
+      notify("Pladsen er din – vi ses på banen");
+      await reloadEvents();
+    } catch (e) {
+      console.error(e);
+      notify(String(e?.message || "").includes("OFFER_EXPIRED")
+        ? "Tilbuddet er udløbet og er gået videre til den næste på ventelisten"
+        : "Kunne ikke tage pladsen – prøv igen");
+      await reloadEvents();
+    }
+  };
+  const declineOffer = async (evId) => {
+    if (demo) {
+      setEvents(es => es.map(ev => ev.id !== evId ? ev : { ...ev, pendingOffer: null }));
+      notify("Nej tak – pladsen tilbydes den næste på ventelisten");
+      return;
+    }
+    try {
+      await declineOfferApi(evId);
+      notify("Pladsen er tilbudt den næste på ventelisten");
+      await reloadEvents();
+    } catch (e) { console.error(e); notify("Kunne ikke afvise pladsen – prøv igen"); }
+  };
 
   /* ---- Admin ---- */
   const adminRemove = async (evId, pid) => {
@@ -315,7 +395,7 @@ export default function App() {
       return;
     }
     if (!pid) return;
-    try { await adminAddApi(evId, pid, me?.centerId); await reloadEvents(); }
+    try { await adminAddApi(evId, pid); await reloadEvents(); }
     catch (e) { console.error(e); notify("Kunne ikke tilføje spilleren"); }
   };
   const adminCapacity = async (evId, d) => {
@@ -344,7 +424,13 @@ export default function App() {
       });
       return;
     }
-    try { await cancelEventApi(evId); notify("Begivenhed aflyst"); await reloadEvents(); }
+    try {
+      const notified = await cancelEventApi(evId);
+      notify(notified > 0
+        ? `Begivenhed aflyst – SMS på vej til ${notified} spillere`
+        : "Begivenhed aflyst");
+      await reloadEvents();
+    }
     catch (e) { console.error(e); notify("Kunne ikke aflyse begivenheden"); }
   };
   const adminCreate = async () => {
@@ -531,7 +617,7 @@ export default function App() {
   const renderRanking = () => (
     <div>
       <div style={{ padding: "26px 4px 18px" }}>
-        <Eyebrow>Ranglisten · {CENTER.name}</Eyebrow>
+        <Eyebrow>Ranglisten · {center.name}</Eyebrow>
         <H size={30} style={{ marginTop: 6 }}>Sæsonen lige nu</H>
         <p style={{ fontFamily: sans, color: C.muted, fontSize: 14, margin: "8px 0 0", lineHeight: 1.5 }}>{players.length} aktive spillere · alle starter på 500 point · opdateret efter hver kampdag</p>
       </div>
@@ -571,7 +657,7 @@ export default function App() {
             <H size={26}>{p.name}</H>
             <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, marginTop: 4 }}>Medlem siden {new Date(p.joined).toLocaleDateString("da-DK", { month: "long", year: "numeric" })}</div>
           </div>
-          {!own && <Btn small kind="soft" onClick={() => { setActiveThread(p.id); setTab("beskeder"); }}><MessageCircle size={15} /> Besked</Btn>}
+          {!own && <Btn small kind="soft" onClick={() => { openThread(p.id); setTab("beskeder"); }}><MessageCircle size={15} /> Besked</Btn>}
           {own && !demo && <Btn small kind="ghost" onClick={() => supabase.auth.signOut()}>Log ud</Btn>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
@@ -605,7 +691,14 @@ export default function App() {
             const key = p.id + "-" + hi;
             const open = expandedHist === key;
             return (
-              <Card key={hi} pad={16} onClick={() => setExpandedHist(open ? null : key)}>
+              <Card key={hi} pad={16} onClick={() => {
+                setExpandedHist(open ? null : key);
+                if (!open && !demo && h.eventId && !histSets[key]) {
+                  fetchPlayerSetsApi(h.eventId, p.id)
+                    .then(rows => setHistSets(hs => ({ ...hs, [key]: rows })))
+                    .catch(e => console.error("Could not load the sets for this day:", e));
+                }
+              }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                   <div>
                     <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14.5, color: C.espresso }}>{h.title}</div>
@@ -618,12 +711,13 @@ export default function App() {
                 </div>
                 {open && (
                   <div style={{ marginTop: 12 }}>
-                    <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginBottom: 8 }}>{fmtDateLong(h.date)} · nr. {h.placement} på banen · {h.after} point efter dagen</div>
+                    <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginBottom: 8 }}>{fmtDateLong(h.date)}{h.placement ? ` · nr. ${h.placement} på banen` : ""} · {h.after} point efter dagen</div>
+                    {!demo && h.eventId && !histSets[key] && <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginBottom: 8 }}>Henter sæt …</div>}
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {h.sets.map((sx, si) => (
+                      {(histSets[key] || h.sets).map((sx, si) => (
                         <div key={si} style={{ display: "flex", alignItems: "center", gap: 10, background: C.sand, borderRadius: 12, padding: "8px 12px" }}>
                           <span style={{ fontFamily: sans, fontSize: 10.5, fontWeight: 700, letterSpacing: ".08em", color: C.muted, width: 46, textTransform: "uppercase" }}>{sx.label}</span>
-                          <span style={{ flex: 1, fontFamily: sans, fontSize: 12.5, color: C.espresso }}>m. {firstName(sx.partner)} <span style={{ color: C.muted }}>vs. {sx.opps.map(firstName).join(" & ")}</span></span>
+                          <span style={{ flex: 1, fontFamily: sans, fontSize: 12.5, color: C.espresso }}>m. {firstName(sx.partner || playersById[sx.partnerId]?.name || "—")} <span style={{ color: C.muted }}>vs. {(sx.opps || (sx.oppIds || []).map(id => playersById[id]?.name || "—")).map(firstName).join(" & ")}</span></span>
                           <span style={{ fontFamily: serif, fontWeight: 700, fontSize: 14.5, color: sx.won ? C.olive : C.clay }}>{sx.score[0]}–{sx.score[1]}</span>
                         </div>
                       ))}
@@ -642,7 +736,23 @@ export default function App() {
     if (activeThread) {
       const other = playersById[activeThread];
       const msgs = threads[activeThread] || [];
-      const send = () => { if (!msgDraft.trim()) return; setThreads(t => ({ ...t, [activeThread]: [...(t[activeThread] || []), { from: "me", text: msgDraft.trim(), time: new Date().toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }) }] })); setMsgDraft(""); };
+      const send = async () => {
+        const text = msgDraft.trim();
+        if (!text) return;
+        setMsgDraft("");
+        if (demo) {
+          setThreads(t => ({ ...t, [activeThread]: [...(t[activeThread] || []), { from: "me", text, time: new Date().toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }) }] }));
+          return;
+        }
+        try {
+          const msg = await sendMessageApi(center.id, ME, activeThread, text);
+          setThreads(t => ({ ...t, [activeThread]: [...(t[activeThread] || []), msg] }));
+        } catch (e) {
+          console.error(e);
+          notify("Beskeden blev ikke sendt");
+          setMsgDraft(text);
+        }
+      };
       return (
         <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 170px)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 4px 14px", borderBottom: `1px solid ${C.line}` }}>
@@ -674,16 +784,20 @@ export default function App() {
       <div>
         <div style={{ padding: "26px 4px 18px" }}><Eyebrow>Beskeder</Eyebrow><H size={30} style={{ marginTop: 6 }}>Indbakke</H></div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {threadIds.map(id => {
+          {threadIds.filter(id => playersById[id] && threads[id].length > 0).map(id => {
             const last = threads[id][threads[id].length - 1];
+            const unread = threads[id].filter(m => m.unread).length;
             return (
-              <Card key={id} pad={14} onClick={() => setActiveThread(id)} style={{ display: "flex", gap: 13, alignItems: "center" }}>
+              <Card key={id} pad={14} onClick={() => openThread(id)} style={{ display: "flex", gap: 13, alignItems: "center" }}>
                 <Avatar name={playersById[id].name} size={46} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 15, color: C.espresso }}>{playersById[id].name}</div>
                   <div style={{ fontFamily: sans, fontSize: 13, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>{last.from === "me" ? "Dig: " : ""}{last.text}</div>
                 </div>
-                <div style={{ fontFamily: sans, fontSize: 11.5, color: C.muted }}>{last.time}</div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
+                  <div style={{ fontFamily: sans, fontSize: 11.5, color: C.muted }}>{last.time}</div>
+                  {unread > 0 && <span style={{ minWidth: 19, height: 19, padding: "0 6px", borderRadius: 999, background: C.mokka, color: C.cream, fontFamily: sans, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{unread}</span>}
+                </div>
               </Card>
             );
           })}
@@ -716,7 +830,7 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-          {ev.date === TODAY && isIn && ev.status === "åben" && <Btn onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
+          {ev.date === TODAY && isIn && isPlayable(ev) && <Btn onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
           {!isIn && !onWL && <Btn kind={full ? "soft" : "primary"} onClick={() => joinEvent(ev.id)} style={{ flex: 1 }}>{full ? "Skriv på venteliste" : "Tilmeld dig"}</Btn>}
           {(isIn || onWL) && (onWL || canSelfCancel(ev)
             ? <Btn kind="ghost" onClick={() => leaveEvent(ev.id)} style={{ flex: 1 }}>{onWL ? "Forlad venteliste" : "Afmeld"}</Btn>
@@ -748,13 +862,28 @@ export default function App() {
             </div>
           </>
         )}
-        {ev.pendingOffer && (
-          <div style={{ marginTop: 14, background: C.gold + "1c", border: `1px dashed ${C.gold}`, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-            <Smartphone size={16} color="#8a6b3c" />
-            <span style={{ flex: 1, fontFamily: sans, fontSize: 12.5, color: "#8a6b3c" }}>Plads tilbudt via SMS til {firstName(playersById[ev.pendingOffer].name)}</span>
-            <Btn small kind="soft" onClick={() => acceptOffer(ev.id)}>Simulér accept</Btn>
-          </div>
-        )}
+        {ev.pendingOffer && <OfferBanner ev={ev} margin={14} />}
+      </div>
+    );
+  };
+
+  /* A freed spot is offered to one player at a time. The player who holds
+     the offer sees the two buttons; everyone else just sees that the spot
+     is spoken for. */
+  const OfferBanner = ({ ev, margin }) => {
+    const mine = ev.pendingOffer === ME;
+    const holder = playersById[ev.pendingOffer];
+    return (
+      <div style={{ marginTop: margin, background: C.gold + "1c", border: `1px dashed ${C.gold}`, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <Smartphone size={16} color="#8a6b3c" />
+        <span style={{ flex: 1, minWidth: 150, fontFamily: sans, fontSize: 12.5, color: "#8a6b3c" }}>
+          {mine
+            ? <>Du er tilbudt en ledig plads{ev.offerExpiresAt ? <> – svar inden <b>{fmtDeadline(ev.offerExpiresAt)}</b></> : null}</>
+            : <>Plads tilbudt via SMS til {firstName(holder?.name || "en spiller")}</>}
+        </span>
+        {mine && <Btn small onClick={() => acceptOffer(ev.id)}>Tag pladsen</Btn>}
+        {mine && <Btn small kind="ghost" onClick={() => declineOffer(ev.id)}>Nej tak</Btn>}
+        {!mine && demo && <Btn small kind="soft" onClick={() => acceptOffer(ev.id)}>Simulér accept</Btn>}
       </div>
     );
   };
@@ -799,15 +928,9 @@ export default function App() {
                 {ev.waitlist.length > 0 && <span style={{ marginLeft: 12, alignSelf: "center", fontFamily: sans, fontSize: 12, color: C.muted }}>{ev.waitlist.length} på venteliste</span>}
               </div>
               <button onClick={() => setEventDetailId(ev.id)} style={{ marginTop: 12, width: "100%", background: C.sand, border: `1px solid ${C.line}`, borderRadius: 12, padding: "10px 14px", fontFamily: sans, fontSize: 13, fontWeight: 600, color: C.mokkaDeep, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>Se deltagere & detaljer <ChevronRight size={15} /></button>
-              {ev.pendingOffer && (
-                <div style={{ marginTop: 12, background: C.gold + "1c", border: `1px dashed ${C.gold}`, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                  <Smartphone size={16} color="#8a6b3c" />
-                  <span style={{ flex: 1, fontFamily: sans, fontSize: 12.5, color: "#8a6b3c" }}>Plads tilbudt via SMS til {firstName(playersById[ev.pendingOffer].name)}</span>
-                  <Btn small kind="soft" onClick={() => acceptOffer(ev.id)}>Simulér accept</Btn>
-                </div>
-              )}
+              {ev.pendingOffer && <OfferBanner ev={ev} margin={12} />}
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                {today && isIn && ev.status === "åben" && <Btn onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
+                {today && isIn && isPlayable(ev) && <Btn onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
                 {!isIn && !onWL && <Btn kind={full ? "soft" : "primary"} onClick={() => joinEvent(ev.id)} style={{ flex: 1 }}>{full ? "Skriv på venteliste" : "Tilmeld dig"}</Btn>}
                 {(isIn || onWL) && (onWL || canSelfCancel(ev)
                   ? <Btn kind="ghost" onClick={() => leaveEvent(ev.id)} style={today && isIn ? {} : { flex: 1 }}>{onWL ? "Forlad venteliste" : "Afmeld"}</Btn>
@@ -1144,8 +1267,10 @@ export default function App() {
   const centerScreen = (msg) => (
     <div style={{ minHeight: "100vh", background: C.sand, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans, fontSize: 14, color: C.muted }}>{msg}</div>
   );
+  if (!demo && centerError) return centerScreen(centerError);
+  if (!demo && !center) return centerScreen("Finder dit padelcenter…");
   if (!demo && authLoading) return centerScreen("Indlæser…");
-  if (!demo && !session) return <AuthScreen />;
+  if (!demo && !session) return <AuthScreen center={center} />;
   if (!demo && !me) return centerScreen("Henter din profil…");
 
   return (
@@ -1163,7 +1288,7 @@ export default function App() {
 
       <header style={{ position: "sticky", top: 0, zIndex: 20, background: C.sand + "e6", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.line}` }}>
         <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Logo />
+          <Logo center={center} />
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {isAdmin && <Tag tone="mokka"><Shield size={11} style={{ verticalAlign: "-1.5px", marginRight: 4 }} />Admin</Tag>}
             <div onClick={() => { setViewPlayerId(null); setTab("profil"); }} style={{ cursor: "pointer" }}><Avatar name={me.name} size={36} ring /></div>
@@ -1187,7 +1312,7 @@ export default function App() {
         {tab !== "admin" && (
           <div style={{ textAlign: "center", padding: "34px 0 0" }}>
             <button onClick={() => setTab("admin")} style={{ background: "none", border: "none", fontFamily: sans, fontSize: 11.5, letterSpacing: ".08em", color: C.muted, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}>Centeradministration</button>
-            <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: ".14em", color: C.muted, textTransform: "uppercase", marginTop: 12, opacity: .7 }}>Powered by {CENTER.platform}</div>
+            <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: ".14em", color: C.muted, textTransform: "uppercase", marginTop: 12, opacity: .7 }}>Powered by {PLATFORM}</div>
           </div>
         )}
       </main>

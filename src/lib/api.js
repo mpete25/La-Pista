@@ -8,7 +8,7 @@ const localTime = (d) => d.toLocaleTimeString("da-DK", { hour: "2-digit", minute
 export async function fetchPlayers() {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, phone, points, wins, losses, role, center_id, joined_at, point_adjustments!player_id(delta, points_after, placement, reason, created_at, events(title))")
+    .select("id, full_name, phone, points, wins, losses, role, center_id, joined_at, point_adjustments!player_id(event_id, delta, points_after, placement, reason, created_at, events(title))")
     .order("points", { ascending: false });
   if (error) throw error;
   return data.map((p) => ({
@@ -25,12 +25,14 @@ export async function fetchPlayers() {
       .slice()
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
       .map((a) => ({
+        eventId: a.event_id,
         date: a.created_at.slice(0, 10),
         title: a.events?.title || a.reason || "Justering af point",
         delta: a.delta,
         after: a.points_after,
         placement: a.placement,
-        sets: [], // per-set detail arrives with the server-side matchday engine
+        // The day's sets are fetched on demand when a history card is opened.
+        sets: [],
       })),
   }));
 }
@@ -45,26 +47,34 @@ export async function fetchCourts() {
   return data;
 }
 
+/** Event status as the Danish UI labels it. */
+const EVENT_STATUS = { open: "åben", in_progress: "i gang", finished: "afsluttet", cancelled: "aflyst" };
+
 export async function fetchEvents() {
   const { data, error } = await supabase
     .from("events")
-    .select("id, title, starts_at, duration_minutes, capacity, status, event_registrations(player_id, status), event_courts(courts(name, sort_order))")
+    .select("id, title, starts_at, duration_minutes, capacity, status, event_registrations(player_id, status, seq, offer_expires_at), event_courts(courts(name, sort_order))")
     .in("status", ["open", "in_progress"])
     .order("starts_at", { ascending: true });
   if (error) throw error;
   return data.map((e) => {
     const d = new Date(e.starts_at);
-    const regs = e.event_registrations || [];
+    // seq is the queue order the server promotes by — show the same order.
+    const regs = (e.event_registrations || []).slice().sort((a, b) => (a.seq || 0) - (b.seq || 0));
+    const offer = regs.find((r) => r.status === "offered");
     return {
       id: e.id,
       title: e.title,
+      startsAt: e.starts_at,
+      durationMinutes: e.duration_minutes,
       date: localDate(d),
       time: localTime(d),
       capacity: e.capacity,
       registered: regs.filter((r) => r.status === "registered").map((r) => r.player_id),
       waitlist: regs.filter((r) => r.status === "waitlist").map((r) => r.player_id),
-      status: "åben",
-      pendingOffer: regs.find((r) => r.status === "offered")?.player_id || null,
+      status: EVENT_STATUS[e.status] || e.status,
+      pendingOffer: offer?.player_id || null,
+      offerExpiresAt: offer?.offer_expires_at || null,
       courtNames: (e.event_courts || [])
         .map((ec) => ec.courts)
         .filter(Boolean)
@@ -82,6 +92,18 @@ export async function joinEventApi(eventId) {
 
 export async function leaveEventApi(eventId) {
   const { error } = await supabase.rpc("leave_event", { p_event_id: eventId });
+  if (error) throw error;
+}
+
+/* ---- Waitlist offers (the other end of the SMS link) ---- */
+
+export async function acceptOfferApi(eventId) {
+  const { error } = await supabase.rpc("accept_offer", { p_event_id: eventId });
+  if (error) throw error;
+}
+
+export async function declineOfferApi(eventId) {
+  const { error } = await supabase.rpc("decline_offer", { p_event_id: eventId });
   if (error) throw error;
 }
 
@@ -115,6 +137,31 @@ export async function reportSetApi(eventId, courtNo, teamA, teamB, gamesA, games
   return data; // set number
 }
 
+/** The sets a player took part in on one match day, in playing order. */
+export async function fetchPlayerSetsApi(eventId, playerId) {
+  const { data, error } = await supabase
+    .from("sets")
+    .select("set_no, team_a, team_b, games_a, games_b")
+    .eq("event_id", eventId)
+    .or(`team_a.cs.{${playerId}},team_b.cs.{${playerId}}`)
+    .order("set_no", { ascending: true });
+  if (error) throw error;
+  return data.map((s) => {
+    const mine = s.team_a.includes(playerId) ? "a" : "b";
+    const own = mine === "a" ? s.team_a : s.team_b;
+    const opp = mine === "a" ? s.team_b : s.team_a;
+    const ownGames = mine === "a" ? s.games_a : s.games_b;
+    const oppGames = mine === "a" ? s.games_b : s.games_a;
+    return {
+      label: "Sæt " + s.set_no,
+      partnerId: own.find((id) => id !== playerId),
+      oppIds: opp,
+      score: [ownGames, oppGames],
+      won: ownGames > oppGames,
+    };
+  });
+}
+
 export async function finishCourtApi(eventId, courtNo) {
   const { error } = await supabase.rpc("finish_court", { p_event_id: eventId, p_court_no: courtNo });
   if (error) throw error;
@@ -143,32 +190,37 @@ export async function createEventApi({ title, date, time, capacity, centerId, co
   }
 }
 
+/* These go through RPCs rather than table writes: cancelling a day has to
+   notify everyone, and freeing or adding a spot has to move the waitlist. */
+
 export async function cancelEventApi(eventId) {
-  const { error } = await supabase.from("events").update({ status: "cancelled" }).eq("id", eventId);
+  const { data, error } = await supabase.rpc("admin_cancel_event", { p_event_id: eventId });
   if (error) throw error;
+  return data; // number of players notified
 }
 
 export async function updateCapacityApi(eventId, capacity) {
-  const { error } = await supabase.from("events").update({ capacity }).eq("id", eventId);
-  if (error) throw error;
-}
-
-export async function adminAddApi(eventId, playerId, centerId) {
-  const { error } = await supabase.from("event_registrations").insert({
-    event_id: eventId,
-    player_id: playerId,
-    center_id: centerId,
-    status: "registered",
+  const { error } = await supabase.rpc("admin_set_capacity", {
+    p_event_id: eventId,
+    p_capacity: Number(capacity),
   });
   if (error) throw error;
 }
 
+export async function adminAddApi(eventId, playerId) {
+  const { data, error } = await supabase.rpc("admin_add_registration", {
+    p_event_id: eventId,
+    p_player_id: playerId,
+  });
+  if (error) throw error;
+  return data; // 'registered' | 'waitlist'
+}
+
 export async function adminRemoveApi(eventId, playerId) {
-  const { error } = await supabase
-    .from("event_registrations")
-    .update({ status: "cancelled" })
-    .eq("event_id", eventId)
-    .eq("player_id", playerId);
+  const { error } = await supabase.rpc("admin_remove_registration", {
+    p_event_id: eventId,
+    p_player_id: playerId,
+  });
   if (error) throw error;
 }
 
@@ -195,4 +247,77 @@ export async function adminSetPointsApi(playerId, points, reason) {
 export async function adminDeletePlayerApi(playerId) {
   const { error } = await supabase.rpc("admin_delete_player", { p_player_id: playerId });
   if (error) throw error;
+}
+
+/* ---- Messages ---- */
+
+const msgTime = (iso) =>
+  new Date(iso).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" });
+
+/**
+ * Every conversation the signed-in player takes part in, keyed by the other
+ * player's id and shaped the way the UI renders them.
+ */
+export async function fetchThreadsApi(meId) {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id, sender_id, recipient_id, body, created_at, read_at")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const threads = {};
+  for (const m of data) {
+    const otherId = m.sender_id === meId ? m.recipient_id : m.sender_id;
+    (threads[otherId] ||= []).push({
+      id: m.id,
+      from: m.sender_id === meId ? "me" : "them",
+      text: m.body,
+      time: msgTime(m.created_at),
+      unread: m.recipient_id === meId && !m.read_at,
+    });
+  }
+  return threads;
+}
+
+export async function sendMessageApi(centerId, senderId, recipientId, body) {
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({ center_id: centerId, sender_id: senderId, recipient_id: recipientId, body })
+    .select("id, created_at")
+    .single();
+  if (error) throw error;
+  return { id: data.id, from: "me", text: body, time: msgTime(data.created_at), unread: false };
+}
+
+export async function markThreadReadApi(meId, otherId) {
+  const { error } = await supabase
+    .from("messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("recipient_id", meId)
+    .eq("sender_id", otherId)
+    .is("read_at", null);
+  if (error) throw error;
+}
+
+/** Live delivery for incoming messages. Returns an unsubscribe function. */
+export function subscribeToMessages(meId, onMessage) {
+  if (!supabase || !meId) return () => {};
+  const channel = supabase
+    .channel("messages-" + meId)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "messages", filter: `recipient_id=eq.${meId}` },
+      (payload) => {
+        const m = payload.new;
+        onMessage(m.sender_id, {
+          id: m.id,
+          from: "them",
+          text: m.body,
+          time: msgTime(m.created_at),
+          unread: true,
+        });
+      }
+    )
+    .subscribe();
+  return () => supabase.removeChannel(channel);
 }
