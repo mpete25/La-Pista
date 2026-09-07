@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase.js";
-import { CENTER } from "../config/center.js";
+import { PLATFORM } from "../config/center.js";
 import { C, softShadow, serif, sans } from "../theme.js";
 
 const inputStyle = {
@@ -24,7 +24,7 @@ const mapError = (e) => {
   return "Noget gik galt — prøv igen. (" + msg + ")";
 };
 
-export default function AuthScreen() {
+export default function AuthScreen({ center }) {
   const [mode, setMode] = useState("login"); // 'login' | 'signup'
   const [form, setForm] = useState({ email: "", password: "", fullName: "", phone: "" });
   const [busy, setBusy] = useState(false);
@@ -44,7 +44,7 @@ export default function AuthScreen() {
           password: form.password,
           options: {
             data: {
-              center_slug: CENTER.id,
+              center_slug: center.slug,
               full_name: form.fullName.trim(),
               phone: form.phone.trim(),
             },
@@ -82,8 +82,8 @@ export default function AuthScreen() {
             <line x1="2" y1="19" x2="28" y2="19" stroke={C.espresso} strokeWidth="2" strokeLinecap="round" />
             <line x1="7" y1="24" x2="23" y2="24" stroke={C.mokka} strokeWidth="2" strokeLinecap="round" opacity=".55" />
           </svg>
-          <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 26, letterSpacing: ".05em", textTransform: "uppercase", marginTop: 10 }}>{CENTER.name}</div>
-          <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: ".28em", color: C.muted, textTransform: "uppercase", marginTop: 4 }}>{CENTER.city} · Rangliste</div>
+          <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 26, letterSpacing: ".05em", textTransform: "uppercase", marginTop: 10 }}>{center.name}</div>
+          <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: ".28em", color: C.muted, textTransform: "uppercase", marginTop: 4 }}>{center.city} · Rangliste</div>
         </div>
 
         <div style={{ background: C.cream, border: `1px solid ${C.line}`, borderRadius: 22, padding: 24, boxShadow: softShadow }}>
@@ -110,13 +110,13 @@ export default function AuthScreen() {
 
           {mode === "signup" && (
             <p style={{ fontFamily: sans, fontSize: 12, color: C.muted, lineHeight: 1.5, margin: "14px 0 0", textAlign: "center" }}>
-              Du starter på 500 point og bliver en del af ranglisten hos {CENTER.name} med det samme.
+              Du starter på 500 point og bliver en del af ranglisten hos {center.name} med det samme.
             </p>
           )}
         </div>
 
         <div style={{ textAlign: "center", fontFamily: sans, fontSize: 10.5, letterSpacing: ".14em", color: C.muted, textTransform: "uppercase", marginTop: 18, opacity: 0.7 }}>
-          Powered by {CENTER.platform}
+          Powered by {PLATFORM}
         </div>
       </div>
     </div>

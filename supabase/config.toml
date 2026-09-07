@@ -412,3 +412,8 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+[functions.send-sms]
+# Called by the scheduler, not by a signed-in user: the function checks the
+# service-role key or CRON_SECRET itself (see supabase/functions/send-sms).
+verify_jwt = false

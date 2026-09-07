@@ -4,9 +4,8 @@
 -- least privilege says anon should not be able to call them at all).
 -- Strictly a tightening change: no policy logic is altered.
 
--- Trigger / event-trigger functions: never callable via the API.
+-- Trigger functions: never callable via the API.
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
-revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
 
 -- RLS helpers: policy evaluation runs as the querying role, so
 -- authenticated keeps EXECUTE. anon never queries tenant data.

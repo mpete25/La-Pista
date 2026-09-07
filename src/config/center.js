@@ -1,14 +1,16 @@
 /**
- * Tenant (center) configuration.
+ * Tenant defaults.
  *
- * La Pista is multi-tenant: every center is a tenant with its own branding.
- * For now this is a static config for the demo tenant; once Supabase is wired
- * up it will be loaded from the `centers` table based on the signed-in user.
+ * The live center is looked up in the `centers` table from the slug in the
+ * URL (see src/lib/center.js). What is left here is the platform name shown
+ * in the footer, and the stand-in tenant used by demo mode when no Supabase
+ * project is configured.
  */
-export const CENTER = {
-  id: "padel-lounge-aalborg",
+export const PLATFORM = "La Pista";
+
+export const DEMO_CENTER = {
+  id: "demo-padel-lounge",
+  slug: "padel-lounge-aalborg",
   name: "Padel Lounge",
   city: "Aalborg",
-  // Platform brand shown in the footer ("powered by").
-  platform: "La Pista",
 };
