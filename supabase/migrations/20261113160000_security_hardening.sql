@@ -192,13 +192,30 @@ grant execute on function public.join_event(uuid) to authenticated;
 -- ============================================================
 -- 4. Bounded, shape-checked names and phone numbers
 -- ============================================================
--- NOT VALID: enforced for every new write, without failing the migration
--- on a row that predates the rule.
+-- Rows that predate the rules are cleaned the same way a new signup is:
+-- separators in a phone number become spaces, and a number that still is
+-- not usable is dropped (an unusable number could never receive an SMS
+-- anyway); names lose markup and are trimmed. Without this, the first
+-- point update on such a row would fail the new constraints.
+update public.profiles
+set phone = nullif(btrim(regexp_replace(regexp_replace(phone, '[-().]', ' ', 'g'), '\s+', ' ', 'g')), '')
+where phone is not null and phone !~ '^\+?[0-9][0-9 ]{6,18}$';
+
+update public.profiles
+set phone = null, sms_consent = false, sms_consent_at = null
+where phone is not null and phone !~ '^\+?[0-9][0-9 ]{6,18}$';
+
+update public.profiles
+set full_name = left(btrim(regexp_replace(full_name, '[<>[:cntrl:]]', '', 'g')), 80)
+where length(btrim(full_name)) not between 2 and 80 or full_name ~ '[<>[:cntrl:]]' or full_name <> btrim(full_name);
+
+update public.profiles set full_name = 'Ny spiller' where length(btrim(full_name)) < 2;
+
 alter table public.profiles
   add constraint profiles_full_name_shape
-    check (length(btrim(full_name)) between 2 and 80 and full_name !~ '[<>[:cntrl:]]') not valid,
+    check (length(btrim(full_name)) between 2 and 80 and full_name !~ '[<>[:cntrl:]]'),
   add constraint profiles_phone_shape
-    check (phone is null or phone ~ '^\+?[0-9][0-9 ]{6,18}$') not valid;
+    check (phone is null or phone ~ '^\+?[0-9][0-9 ]{6,18}$');
 
 -- A signup must not fail because of a sloppy optional field: an unusable
 -- phone number is dropped (and with it the SMS opt-in), a name is trimmed.
