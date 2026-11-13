@@ -11,4 +11,17 @@ if (!url || !anonKey) {
   );
 }
 
+/** What kind of e-mail link opened the app, if any ("recovery" for a
+ *  password reset, "invite" for a new center admin). Read before the client
+ *  is created, because the client strips the token from the URL. */
+export const authLinkType = (() => {
+  try {
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const query = new URLSearchParams(window.location.search);
+    return hash.get("type") || query.get("type") || null;
+  } catch {
+    return null;
+  }
+})();
+
 export const supabase = url && anonKey ? createClient(url, anonKey) : null;

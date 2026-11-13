@@ -5,16 +5,21 @@ import { supabase } from "./supabase.js";
 const localDate = (d) => d.toLocaleDateString("sv-SE"); // YYYY-MM-DD in local tz
 const localTime = (d) => d.toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" });
 
-export async function fetchPlayers() {
+/** Phone numbers are private (column privileges): players never receive
+ *  each other's. A center admin gets them merged in via admin_player_contacts(). */
+export async function fetchPlayers(meId) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, phone, points, wins, losses, role, center_id, joined_at, point_adjustments!player_id(event_id, delta, points_after, placement, reason, created_at, events(title))")
+    .select("id, full_name, points, wins, losses, role, center_id, joined_at, point_adjustments!player_id(event_id, delta, points_after, placement, reason, created_at, events(title))")
     .order("points", { ascending: false });
   if (error) throw error;
+  const isAdmin = data.some((p) => p.id === meId && p.role === "center_admin");
+  const contacts = isAdmin ? await fetchAdminContactsApi() : {};
   return data.map((p) => ({
     id: p.id,
     name: p.full_name,
-    phone: p.phone || "",
+    phone: contacts[p.id]?.phone || "",
+    smsConsent: contacts[p.id]?.smsConsent ?? null,
     points: p.points,
     wins: p.wins,
     losses: p.losses,
@@ -247,6 +252,68 @@ export async function adminSetPointsApi(playerId, points, reason) {
 export async function adminDeletePlayerApi(playerId) {
   const { error } = await supabase.rpc("admin_delete_player", { p_player_id: playerId });
   if (error) throw error;
+}
+
+/* ---- Admin: contact details (phone numbers are private to admins) ---- */
+
+export async function fetchAdminContactsApi() {
+  const { data, error } = await supabase.rpc("admin_player_contacts");
+  if (error) throw error;
+  return Object.fromEntries(data.map((r) => [r.player_id, { phone: r.phone || "", smsConsent: r.sms_consent }]));
+}
+
+/* ---- My account: private fields, consent, export, deletion (GDPR) ---- */
+
+export async function fetchMyPrivateProfileApi() {
+  const { data, error } = await supabase.rpc("my_private_profile");
+  if (error) throw error;
+  const row = data?.[0] || {};
+  return { phone: row.phone || "", smsConsent: !!row.sms_consent, privacyAcceptedAt: row.privacy_accepted_at };
+}
+
+export async function updateMyPhoneApi(meId, phone) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ phone: phone.trim() || null })
+    .eq("id", meId);
+  if (error) throw error;
+}
+
+export async function setSmsConsentApi(consent) {
+  const { error } = await supabase.rpc("set_sms_consent", { p_consent: consent });
+  if (error) throw error;
+}
+
+export async function exportMyDataApi() {
+  const { data, error } = await supabase.rpc("export_my_data");
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteMyAccountApi() {
+  const { error } = await supabase.rpc("delete_my_account");
+  if (error) throw error;
+}
+
+/* ---- Live updates for rankings and match days ---- */
+
+/** Calls onChange(table, row) whenever an event, sign-up, court split, set or
+ *  point change happens in this center. RLS limits what each subscriber
+ *  receives; the center filter just keeps the traffic down. Returns an
+ *  unsubscribe function. */
+export function subscribeToCenterChanges(centerId, onChange) {
+  if (!supabase || !centerId) return () => {};
+  const filter = `center_id=eq.${centerId}`;
+  let channel = supabase.channel("center-" + centerId);
+  for (const table of ["events", "event_registrations", "court_assignments", "sets", "point_adjustments"]) {
+    channel = channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table, filter },
+      (payload) => onChange(table, payload.new && Object.keys(payload.new).length ? payload.new : payload.old)
+    );
+  }
+  channel.subscribe();
+  return () => supabase.removeChannel(channel);
 }
 
 /* ---- Messages ---- */

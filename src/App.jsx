@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { Trophy, MessageCircle, Calendar, User, ChevronRight, ChevronLeft, Send, Plus, Minus, X, Check, Clock, TrendingUp, Crown, Shield, Smartphone, ArrowLeft, Swords } from "lucide-react";
 import { DEMO_CENTER, PLATFORM } from "./config/center.js";
@@ -6,7 +6,8 @@ import { centerSlugFromLocation, fetchCenterBySlug } from "./lib/center.js";
 import { C, shadow, softShadow, serif, sans } from "./theme.js";
 import { supabase } from "./lib/supabase.js";
 import { useAuth } from "./hooks/useAuth.js";
-import AuthScreen from "./components/AuthScreen.jsx";
+import { setMonitoringUser } from "./lib/monitoring.js";
+import AuthScreen, { SetPasswordScreen, PRIVACY_URL } from "./components/AuthScreen.jsx";
 import {
   fetchPlayers, fetchEvents, fetchCourts, joinEventApi, leaveEventApi,
   createEventApi, cancelEventApi, updateCapacityApi, adminAddApi, adminRemoveApi,
@@ -14,7 +15,8 @@ import {
   startMatchdayApi, fetchMatchdayApi, reportSetApi, finishCourtApi,
   acceptOfferApi, declineOfferApi, fetchPlayerSetsApi,
   fetchThreadsApi, sendMessageApi, markThreadReadApi, subscribeToMessages,
-  fetchSmsLogApi,
+  fetchSmsLogApi, subscribeToCenterChanges,
+  fetchMyPrivateProfileApi, updateMyPhoneApi, setSmsConsentApi, exportMyDataApi, deleteMyAccountApi,
 } from "./lib/api.js";
 
 /* Demo mode: no Supabase configured -> the app runs on the in-memory seed data. */
@@ -189,7 +191,7 @@ const Chips = ({ options, value, onChange }) => (
 /* ================= APP ================= */
 export default function App() {
   const demo = IS_DEMO;
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, needsPassword, passwordSet } = useAuth();
   const [players, setPlayers] = useState(demo ? seedPlayers : []);
   const [events, setEvents] = useState(demo ? () => seedEvents(seedPlayers()) : []);
   const [threads, setThreads] = useState(demo ? seedThreads : () => ({}));
@@ -213,6 +215,10 @@ export default function App() {
   const [centerError, setCenterError] = useState(null);
   const [histSets, setHistSets] = useState({});
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [account, setAccount] = useState(null); // own private fields: { phone, smsConsent }
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [accountBusy, setAccountBusy] = useState(false);
   useEffect(() => { const t = setInterval(() => setClock(Date.now()), 15000); return () => clearInterval(t); }, []);
 
   const ME = demo ? "p7" /* Mads Kristensen – demo-login */ : session?.user?.id;
@@ -246,7 +252,7 @@ export default function App() {
   }, [demo]);
 
   /* ---- Real data (Supabase) ---- */
-  const reloadPlayers = async () => setPlayers(await fetchPlayers());
+  const reloadPlayers = async () => setPlayers(await fetchPlayers(session?.user?.id));
   const reloadEvents = async () => setEvents(await fetchEvents());
 
   /* DOMAIN RULE: confirmed spots cannot self-cancel within 24h of start —
@@ -261,7 +267,7 @@ export default function App() {
   useEffect(() => {
     if (demo || !session) return;
     let cancelled = false;
-    Promise.all([fetchPlayers(), fetchEvents(), fetchCourts(), fetchThreadsApi(session.user.id)])
+    Promise.all([fetchPlayers(session.user.id), fetchEvents(), fetchCourts(), fetchThreadsApi(session.user.id)])
       .then(([pl, ev, co, th]) => { if (!cancelled) { setPlayers(pl); setEvents(ev); setCourtsList(co); setThreads(th); } })
       .catch((e) => { console.error("Data load failed:", e); if (!cancelled) setToast("Kunne ikke hente data – prøv at genindlæse"); })
       .finally(() => { if (!cancelled) setDataLoaded(true); });
@@ -276,6 +282,71 @@ export default function App() {
       setThreads((t) => ({ ...t, [fromId]: [...(t[fromId] || []), msg] }));
     });
   }, [demo, ME]);
+
+  /* Own private fields (phone, SMS consent) are not in the shared player
+     list, so they are read separately when the own profile is opened. */
+  // A different user on the same device must never see the previous one's fields.
+  const sessionUserId = session?.user?.id;
+  useEffect(() => { setAccount(null); setConfirmDeleteAccount(false); setMonitoringUser(sessionUserId); }, [sessionUserId]);
+  const ownProfileOpen = tab === "profil" && (!viewPlayerId || viewPlayerId === ME);
+  useEffect(() => {
+    if (!ownProfileOpen || account) return;
+    if (demo) {
+      const p = playersById[ME];
+      setAccount({ phone: p?.phone || "", smsConsent: true });
+      setPhoneDraft(p?.phone || "");
+      return;
+    }
+    if (!session) return;
+    let cancelled = false;
+    fetchMyPrivateProfileApi()
+      .then(a => { if (!cancelled) { setAccount(a); setPhoneDraft(a.phone); } })
+      .catch(e => console.error("Could not load account settings:", e));
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownProfileOpen, demo, session, account]);
+
+  /* Live updates: a set reported on another phone, a new sign-up or points
+     awarded at the end of a day reach every open app without a reload. */
+  const matchdayRef = useRef(matchday);
+  useEffect(() => { matchdayRef.current = matchday; }, [matchday]);
+  const syncMatchdaySets = async (eventId, courtNo) => {
+    const { sets } = await fetchMatchdayApi(eventId);
+    const results = sets.filter(s => s.court_no === courtNo).map(s => ({
+      round: s.set_no - 1, left: s.team_a, right: s.team_b,
+      score: [s.games_a, s.games_b],
+      winners: s.games_a > s.games_b ? s.team_a : s.team_b,
+    }));
+    let changed = false;
+    setMatchday(cur => {
+      if (!cur || cur.eventId !== eventId || cur.courtNo !== courtNo || cur.stage === "færdig") return cur;
+      if (results.length <= cur.results.length) return cur;
+      changed = true;
+      return { ...cur, results, round: results.length, winners: null, wScore: null, lScore: null, stage: "bane" };
+    });
+    if (changed) notify("En medspiller har indberettet sættet");
+  };
+  const centerId = me?.centerId;
+  useEffect(() => {
+    if (demo || !session || !centerId) return;
+    let reloadTimer = null, setsTimer = null;
+    const unsubscribe = subscribeToCenterChanges(centerId, (table, row) => {
+      // Bursts (a whole court split, a day's point changes) arrive as many
+      // rows; refetch once after they settle.
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => {
+        reloadPlayers().catch(e => console.error("Live reload of players failed:", e));
+        reloadEvents().catch(e => console.error("Live reload of events failed:", e));
+      }, 600);
+      const md = matchdayRef.current;
+      if (table === "sets" && md && row?.event_id === md.eventId && row?.court_no === md.courtNo) {
+        clearTimeout(setsTimer);
+        setsTimer = setTimeout(() => syncMatchdaySets(md.eventId, md.courtNo).catch(e => console.error(e)), 300);
+      }
+    });
+    return () => { clearTimeout(reloadTimer); clearTimeout(setsTimer); unsubscribe(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, session, centerId]);
 
   useEffect(() => {
     if (demo || !isAdmin || tab !== "admin") return;
@@ -655,6 +726,114 @@ export default function App() {
     </div>
   );
 
+  /* ---- My account: phone, SMS consent, data export, deletion (GDPR) ---- */
+  const accountAction = async (fn) => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try { await fn(); } finally { setAccountBusy(false); }
+  };
+  const savePhone = () => accountAction(async () => {
+    const phone = phoneDraft.trim();
+    if (phone && !/^\+?[\d\s-]{8,16}$/.test(phone)) { notify("Det ligner ikke et telefonnummer"); return; }
+    try {
+      if (!demo) await updateMyPhoneApi(ME, phone);
+      setAccount(a => ({ ...a, phone }));
+      notify(phone ? "Dit mobilnummer er gemt" : "Dit mobilnummer er fjernet");
+    } catch (e) { console.error(e); notify("Kunne ikke gemme nummeret – prøv igen"); }
+  });
+  const toggleSms = (on) => accountAction(async () => {
+    if (on && !account?.phone) { notify("Tilføj et mobilnummer først"); return; }
+    try {
+      if (!demo) await setSmsConsentApi(on);
+      setAccount(a => ({ ...a, smsConsent: on }));
+      notify(on ? "Du får SMS ved ledige pladser og aflysninger" : "Du får ikke længere SMS fra os");
+    } catch (e) { console.error(e); notify("Kunne ikke gemme dit valg – prøv igen"); }
+  });
+  const downloadMyData = () => accountAction(async () => {
+    try {
+      const data = demo ? { demo: true, profile: playersById[ME] } : await exportMyDataApi();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `la-pista-mine-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { console.error(e); notify("Kunne ikke hente dine data – prøv igen"); }
+  });
+  const deleteMyAccount = () => accountAction(async () => {
+    if (demo) { setConfirmDeleteAccount(false); notify("Demo: kontoen ville nu være slettet"); return; }
+    try {
+      await deleteMyAccountApi();
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error(e);
+      const m = String(e?.message || "");
+      setConfirmDeleteAccount(false);
+      notify(m.includes("ACTIVE_MATCHDAY") ? "Du kan ikke slette din konto midt i en kampdag"
+        : m.includes("LAST_ADMIN") ? "Du er centerets eneste admin – udnævn en anden admin først"
+        : "Kunne ikke slette kontoen – prøv igen");
+    }
+  });
+
+  const renderAccount = () => {
+    if (!account) return <Card style={{ marginTop: 12 }}><div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted }}>Henter dine indstillinger…</div></Card>;
+    const phoneChanged = phoneDraft.trim() !== (account.phone || "");
+    const row = { display: "flex", alignItems: "center", gap: 12, padding: "14px 0", borderTop: `1px solid ${C.line}` };
+    return (
+      <>
+        <div style={{ padding: "22px 4px 10px" }}><Eyebrow>Konto</Eyebrow><H size={19} style={{ marginTop: 4 }}>Indstillinger og privatliv</H></div>
+        <Card>
+          <div style={{ paddingBottom: 14 }}>
+            <label htmlFor="my-phone" style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso }}>Mobilnummer</label>
+            <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, margin: "2px 0 8px" }}>Kun du og centerets personale kan se det.</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input id="my-phone" value={phoneDraft} onChange={e => setPhoneDraft(e.target.value)} type="tel" autoComplete="tel" placeholder="+45 12 34 56 78" style={{ ...adminInput, fontSize: 16, flex: 1, minWidth: 0 }} />
+              {phoneChanged && <Btn small onClick={savePhone} disabled={accountBusy}><Check size={14} /> Gem</Btn>}
+            </div>
+          </div>
+          <label style={{ ...row, cursor: "pointer" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso }}>SMS-beskeder</div>
+              <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, marginTop: 2, lineHeight: 1.45 }}>Når der bliver en plads ledig til dig, eller en kampdag bliver aflyst.</div>
+            </div>
+            <input type="checkbox" role="switch" checked={!!account.smsConsent} disabled={accountBusy} onChange={e => toggleSms(e.target.checked)} style={{ width: 22, height: 22, accentColor: C.mokka, flexShrink: 0 }} />
+          </label>
+          <div style={row}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso }}>Dine data</div>
+              <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, marginTop: 2 }}>Hent alt, vi har gemt om dig, som en fil.</div>
+            </div>
+            <Btn small kind="soft" onClick={downloadMyData} disabled={accountBusy}>Download</Btn>
+          </div>
+          <div style={row}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso }}>Privatlivspolitik</div>
+              <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, marginTop: 2 }}>Hvad vi gemmer, og hvorfor.</div>
+            </div>
+            <a href={PRIVACY_URL} target="_blank" rel="noreferrer" style={{ fontFamily: sans, fontWeight: 600, fontSize: 13, color: C.mokkaDeep, textDecoration: "none", padding: "8px 16px", borderRadius: 999, background: C.beige }}>Læs</a>
+          </div>
+          <div style={{ ...row, paddingBottom: 0, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.clay }}>Slet min konto</div>
+              <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, marginTop: 2, lineHeight: 1.45 }}>
+                {confirmDeleteAccount ? "Din profil, dine point, tilmeldinger og beskeder slettes for altid. Det kan ikke fortrydes." : "Fjerner din profil og dit login permanent."}
+              </div>
+            </div>
+            {confirmDeleteAccount ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <Btn small kind="danger" onClick={deleteMyAccount} disabled={accountBusy}>Ja, slet</Btn>
+                <Btn small kind="ghost" onClick={() => setConfirmDeleteAccount(false)}>Fortryd</Btn>
+              </div>
+            ) : (
+              <Btn small kind="danger" onClick={() => setConfirmDeleteAccount(true)}>Slet</Btn>
+            )}
+          </div>
+        </Card>
+      </>
+    );
+  };
+
   const renderProfile = () => {
     const p = playersById[viewPlayerId || ME];
     const own = p.id === ME;
@@ -740,6 +919,7 @@ export default function App() {
             );
           })}
         </div>
+        {own && renderAccount()}
       </div>
     );
   };
@@ -1232,7 +1412,7 @@ export default function App() {
                   <Avatar name={p.name} size={36} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>{p.name}{p.role === "center_admin" && <Tag tone="mokka">admin</Tag>}{p.id === ME && <Tag>dig</Tag>}</div>
-                    <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginTop: 2 }}>{p.phone || "Intet nummer"} · {p.points} point · {p.wins} S / {p.losses} N</div>
+                    <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginTop: 2 }}>{p.phone || "Intet nummer"}{p.phone && p.smsConsent === false ? " (ingen SMS)" : ""} · {p.points} point · {p.wins} S / {p.losses} N</div>
                   </div>
                   <Btn small kind="soft" onClick={() => { setConfirmDelete(null); setEditPlayer({ id: p.id, name: p.name, phone: p.phone || "", points: String(p.points), reason: "" }); }}>Redigér</Btn>
                   {p.id !== ME && (confirmDelete === p.id ? (
@@ -1287,6 +1467,7 @@ export default function App() {
   if (!demo && !center) return centerScreen("Finder dit padelcenter…");
   if (!demo && authLoading) return centerScreen("Indlæser…");
   if (!demo && !session) return <AuthScreen center={center} />;
+  if (!demo && needsPassword) return <SetPasswordScreen center={center} onDone={() => { passwordSet(); notify("Din adgangskode er gemt"); }} />;
   if (!demo && !me) return centerScreen(dataLoaded
     ? `Din bruger er logget ind, men har ingen spillerprofil hos ${center.name}. Kontakt centeret, så de kan oprette dig.`
     : "Henter din profil…");

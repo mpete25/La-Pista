@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F6F1E8" />
+  <title>Privatlivspolitik · La Pista</title>
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+  <!--
+    UDKAST — skal gennemgås før lancering (se docs/GO-LIVE.md).
+    Felter i [firkantede parenteser] skal udfyldes. Teksten er et
+    udgangspunkt, ikke juridisk rådgivning.
+  -->
+  <style>
+    :root { --sand:#F6F1E8; --cream:#FFFDF8; --line:#E9DECB; --mokka:#7A5C43; --espresso:#2E2519; --muted:#7d6e58; --clay:#B4694E; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--sand); color: var(--espresso); font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: calc(28px + env(safe-area-inset-top)) 20px calc(48px + env(safe-area-inset-bottom)); }
+    h1 { font-family: Georgia, serif; font-size: 30px; line-height: 1.2; margin: 6px 0 4px; }
+    h2 { font-family: Georgia, serif; font-size: 20px; margin: 32px 0 8px; }
+    p, li { color: var(--espresso); }
+    .meta { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+    .draft { background: #B4694E1a; border: 1px solid #B4694E55; color: #8a4a33; border-radius: 14px; padding: 12px 16px; font-size: 14px; margin: 18px 0 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14.5px; background: var(--cream); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-weight: 600; background: #EFE6D6; }
+    tr:last-child td { border-bottom: 0; }
+    .table-wrap { overflow-x: auto; }
+    a { color: var(--mokka); font-weight: 600; }
+    .back { display: inline-block; margin-bottom: 8px; text-decoration: none; font-size: 14px; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← Tilbage til appen</a>
+  <h1>Privatlivspolitik</h1>
+  <p class="meta">La Pista – padel-rangliste · Senest opdateret [dato]</p>
+
+  <div class="draft"><strong>Udkast.</strong> Denne politik er ikke endeligt godkendt endnu og skal gennemgås før appen tages i brug med rigtige spillere.</div>
+
+  <h2>Hvem er dataansvarlig?</h2>
+  <p>
+    Det padelcenter, du er tilmeldt ranglisten hos, er dataansvarlig for dine oplysninger.
+    La Pista ([virksomhedsnavn], CVR [nummer]) leverer appen og behandler oplysningerne på centerets vegne som databehandler.
+  </p>
+  <p>Kontakt: [e-mail] · [adresse]</p>
+
+  <h2>Hvilke oplysninger gemmer vi?</h2>
+  <div class="table-wrap">
+  <table>
+    <tr><th>Oplysning</th><th>Hvorfor</th><th>Hvem kan se den</th></tr>
+    <tr><td>Navn</td><td>Så du kan stå på ranglisten og blive sat på bane</td><td>Spillere i dit center</td></tr>
+    <tr><td>E-mail og adgangskode (krypteret)</td><td>Login og nulstilling af adgangskode</td><td>Kun dig</td></tr>
+    <tr><td>Mobilnummer (valgfrit)</td><td>SMS, hvis du har sagt ja til det</td><td>Dig og centerets personale</td></tr>
+    <tr><td>Point, resultater, sæt og placeringer</td><td>Ranglisten og pointberegningen</td><td>Spillere i dit center</td></tr>
+    <tr><td>Tilmeldinger og venteliste</td><td>Kampdage og ledige pladser</td><td>Spillere i dit center</td></tr>
+    <tr><td>Beskeder til andre spillere</td><td>Så I kan aftale kampe</td><td>Kun afsender og modtager</td></tr>
+    <tr><td>Log over sendte SMS'er</td><td>Dokumentation og fejlsøgning</td><td>Centerets personale</td></tr>
+  </table>
+  </div>
+  <p>Vi bruger ikke dine oplysninger til markedsføring og sælger dem aldrig.</p>
+
+  <h2>Retsgrundlag</h2>
+  <ul>
+    <li><strong>Ranglisten og kampdage:</strong> nødvendigt for at levere den tjeneste, du har tilmeldt dig (databeskyttelsesforordningens art. 6, stk. 1, litra b).</li>
+    <li><strong>SMS:</strong> dit samtykke (art. 6, stk. 1, litra a). Du kan til enhver tid trække det tilbage under <em>Profil → SMS-beskeder</em>.</li>
+  </ul>
+
+  <h2>Hvem behandler oplysningerne for os?</h2>
+  <ul>
+    <li><strong>Supabase</strong>: database og login. Data opbevares i [EU-region, f.eks. Frankfurt].</li>
+    <li><strong>[GatewayAPI / inMobile]</strong>: afsendelse af SMS (dansk SMS-udbyder).</li>
+    <li><strong>[Vercel]</strong>: hosting af selve appen. Der gemmes ingen spillerdata her.</li>
+    <li><strong>[Sentry]</strong>, hvis det er slået til: fejlrapporter uden navn, e-mail eller telefonnummer.</li>
+  </ul>
+  <p>Vi har databehandleraftaler med alle udbydere. [Bekræft og opdatér listen.]</p>
+
+  <h2>Hvor længe gemmer vi dem?</h2>
+  <p>
+    Så længe du har en profil. Sletter du din profil, slettes dine oplysninger med det samme.
+    Dine resultater i sæt, du har spillet med andre, bevares uden dit navn, så de andre spilleres historik stadig passer.
+    [Tilføj evt. regel om sletning af inaktive profiler, f.eks. efter 24 måneder.]
+  </p>
+
+  <h2>Dine rettigheder</h2>
+  <ul>
+    <li><strong>Indsigt:</strong> Hent alle dine oplysninger under <em>Profil → Dine data → Download</em>.</li>
+    <li><strong>Berigtigelse:</strong> Ret dit mobilnummer under Profil, eller kontakt centeret om dit navn.</li>
+    <li><strong>Sletning:</strong> Slet din profil under <em>Profil → Slet min konto</em>.</li>
+    <li><strong>Tilbagetrækning af samtykke:</strong> Slå SMS fra under Profil.</li>
+    <li><strong>Klage:</strong> Du kan klage til Datatilsynet, <a href="https://www.datatilsynet.dk" rel="noreferrer">datatilsynet.dk</a>.</li>
+  </ul>
+
+  <h2>Cookies</h2>
+  <p>
+    Appen bruger ikke cookies til sporing eller reklame. Den gemmer dit login og appens filer lokalt på din enhed, så du forbliver logget ind og appen starter hurtigt.
+  </p>
+</main>
+</body>
+</html>
