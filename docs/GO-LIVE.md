@@ -9,6 +9,32 @@ spillere og rigtige data kommer ind. Sæt kryds efterhånden.
 
 ---
 
+## 0. Status fra sikkerhedsgennemgangen (13. november 2026)
+
+**Supabase-projektet "La-Pista" er sat på pause (INACTIVE).** Appen kan ikke
+bruges, før det er startet igen: Supabase → projektet → *Restore project*.
+Gratis projekter pauses automatisk efter en uges stilstand, så overvej
+Pro-planen, når rigtige spillere er i gang – ellers kan appen gå i sort.
+
+- [ ] Start projektet igen, og kør derefter migrationerne (punkt 2).
+- [ ] Kør Supabases egne tjek bagefter: *Advisors → Security* skal være uden
+      fejl. (Det kunne ikke gøres under gennemgangen, fordi projektet var pauset.)
+
+Rettet i koden under gennemgangen (migration `20261113160000_security_hardening`):
+falske sæt kunne skrives direkte i databasen; sæt kunne indberettes i
+ubegrænset antal; man kunne ikke tilmelde sig igen efter et afbud; navne og
+telefonnumre kunne indeholde hvad som helst; beskeder kunne spammes.
+
+**Beslutninger, du skal tage:**
+
+- [ ] **Åben tilmelding.** Alle, der kender centerets adresse, kan oprette en
+      profil og se medlemmernes navne og point (ikke telefonnumre). Er det
+      ikke ønsket, skal der bygges en tilmeldingskode eller admin-godkendelse.
+      Slå som minimum *Confirm email* til (punkt 2).
+- [ ] **Resultater indberettes af spillerne selv.** Én spiller på banen kan
+      indtaste et forkert resultat. De tre andre ser det med det samme, og en
+      admin kan slette sættet, men der er ingen "godkend"-knap for modstanderne.
+
 ## 1. Juridisk og privatliv (GDPR) – skal være på plads
 
 - [ ] **Privatlivspolitikken** (`public/privatliv.html`) er et *udkast*. Udfyld
@@ -47,8 +73,13 @@ spillere og rigtige data kommer ind. Sæt kryds efterhånden.
       bekræft tilmelding, nulstil adgangskode, invitation.
 - [ ] **Egen SMTP-server** (f.eks. Postmark, Resend, Brevo): Supabases
       indbyggede mail sender kun nogle få mails i timen og er kun til test.
-- [ ] Overvej at slå *Confirm email* til, så folk ikke kan oprette sig med
-      andres e-mail. Appen håndterer det allerede ("Tjek din e-mail …").
+- [ ] Slå *Confirm email* til (Authentication → Sign In / Providers), så
+      ingen kan oprette sig med andres e-mail. Appen håndterer det allerede.
+- [ ] **Adgangskoder:** sæt minimumslængden til 8 (appen kræver det allerede)
+      og slå *Leaked password protection* til.
+- [ ] **Bot-beskyttelse:** slå CAPTCHA (Turnstile/hCaptcha) til for tilmelding,
+      hvis I ser falske profiler. Kræver en lille ændring i login-skærmen.
+- [ ] Tjek at *anonymous sign-ins* er slået fra.
 - [ ] **Realtime:** Åbn appen på to telefoner, indberet et sæt på den ene, og
       tjek, at det dukker op på den anden uden at genindlæse.
 
@@ -73,10 +104,12 @@ Vault-hemmelighederne er sat.
 - [ ] Med `SMS_DRY_RUN=true`: tjek Admin → SMS-log, at beskederne ser rigtige ud.
 - [ ] Send én rigtig SMS til dit eget nummer (sæt `SMS_DRY_RUN=false`).
 - [ ] Sæt et forbrugsloft hos SMS-udbyderen.
-- [ ] **Ret linket i SMS'en.** Tilbuddet om en ledig plads linker til
-      `https://lapista.dk/e/<id>`. Den adresse har intet center og ingen side
-      for `/e/`, så linket lander på "Ingen padelcenter angivet". Linket skal
-      pege på centerets egen adresse og åbne den rigtige kampdag.
+- [ ] **Sæt centerets adresse**, så SMS'en kan linke direkte til kampdagen
+      (uden den sendes SMS'en uden link). Kør i SQL Editor, eller brug
+      `--app-url` i `scripts/create-center.mjs`:
+      ```sql
+      update public.centers set app_url = 'https://<din-adresse>' where slug = '<center-slug>';
+      ```
 
 ## 4. Hosting (Vercel) og domæne
 
@@ -84,7 +117,14 @@ Vault-hemmelighederne er sat.
       `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
       `VITE_DEFAULT_CENTER_SLUG` (dit første centers slug),
       `VITE_PLATFORM_DOMAIN=lapista.dk`, evt. `VITE_SENTRY_DSN`.
-      **Uden Supabase-variablerne kører appen i demo-tilstand.**
+      Uden Supabase-variablerne nægter appen at starte og viser "Appen er
+      ikke sat op endnu" – demo-data kan ikke komme live ved en fejl
+      (kun med `VITE_DEMO_MODE=true`).
+- [ ] **Sikkerhedsheaders:** `vercel.json` (Vercel) og `public/_headers`
+      (Netlify/Cloudflare Pages) sætter dem automatisk. Bruger du et andet
+      værktøj, så tjek på securityheaders.com, at de kommer med – ellers skal
+      de sættes op dér. Bruger du Sentry i en anden region end standard, eller
+      eget Supabase-domæne, skal `connect-src` i begge filer rettes til.
 - [ ] **Aldrig** `SUPABASE_SERVICE_ROLE_KEY` eller SMS-nøgler i Vercel/frontend.
 - [ ] Domæne: `lapista.dk` + wildcard `*.lapista.dk` peget på Vercel, så hvert
       center får sin egen adresse.

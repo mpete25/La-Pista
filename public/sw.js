@@ -10,7 +10,7 @@
  *
  * Bump VERSION to drop old caches when this file's strategy changes.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = `la-pista-${VERSION}`;
 const OFFLINE_URL = new URL("offline.html", self.registration.scope).href;
 const PRECACHE = [

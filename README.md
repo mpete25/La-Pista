@@ -151,6 +151,17 @@ Set `VITE_SENTRY_DSN` to turn on Sentry. Without it nothing is loaded or sent.
 No names, e-mails or phone numbers are attached to reports — only the user id.
 A render error shows a Danish "Noget gik galt" page instead of a blank screen.
 
+## Security notes
+
+- Sets are written only by `report_set()` (no direct INSERT), and limited to
+  one per five minutes since the day started, so results cannot be forged or
+  flooded. Points are computed only in `finish_court()`.
+- `vercel.json` and `public/_headers` set a Content-Security-Policy, HSTS,
+  frame denial and caching rules. Keep the two files in sync.
+- A production build without Supabase settings refuses to run unless
+  `VITE_DEMO_MODE=true`.
+- `centers.app_url` is where SMS links point (`?event=<id>` opens that day).
+
 ## Before going live
 
 See **[docs/GO-LIVE.md](docs/GO-LIVE.md)** — everything that has to be set up
