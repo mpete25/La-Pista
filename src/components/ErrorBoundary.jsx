@@ -1,6 +1,6 @@
 import React from "react";
 import { reportError } from "../lib/monitoring.js";
-import { C, serif, sans } from "../theme.js";
+import { C, G, serif, sans } from "../theme.js";
 
 /** Last line of defence: a render error shows a friendly page with a way
  *  back, instead of a blank screen, and is reported to monitoring. */
@@ -18,7 +18,7 @@ export default class ErrorBoundary extends React.Component {
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div role="alert" style={{ minHeight: "100vh", background: C.sand, color: C.espresso, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontFamily: sans }}>
+      <div role="alert" style={{ minHeight: "100vh", background: G.page, color: C.espresso, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontFamily: sans }}>
         <div style={{ maxWidth: 320 }}>
           <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 24, marginBottom: 8 }}>Noget gik galt</div>
           <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.5, margin: "0 0 22px" }}>

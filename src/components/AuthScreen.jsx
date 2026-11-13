@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase.js";
 import { PLATFORM } from "../config/center.js";
-import { C, softShadow, serif, sans } from "../theme.js";
+import { C, G, softShadow, serif, sans, globalCss } from "../theme.js";
 
 export const PRIVACY_URL = `${import.meta.env.BASE_URL}privatliv.html`;
 
@@ -36,14 +36,9 @@ const mapError = (e) => {
 /* Shared frame: logo, center name, card, footer. */
 function AuthFrame({ center, children }) {
   return (
-    <div style={{ minHeight: "100vh", background: C.sand, fontFamily: sans, color: C.espresso, display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom))" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Outfit:wght@300;400;500;600;700&display=swap');
-        * { box-sizing: border-box; }
-        body { margin: 0; }
-        input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid ${C.mokka}; outline-offset: 2px; }
-      `}</style>
-      <div style={{ width: "100%", maxWidth: 400 }}>
+    <div style={{ minHeight: "100dvh", background: G.page, fontFamily: sans, color: C.espresso, display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom))" }}>
+      <style>{globalCss}</style>
+      <div className="view" style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}>
           <svg width="44" height="44" viewBox="0 0 30 30" aria-hidden>
             <defs><linearGradient id="sunAuth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={C.gold} /><stop offset="1" stopColor={C.mokka} /></linearGradient></defs>
@@ -66,7 +61,7 @@ function AuthFrame({ center, children }) {
 }
 
 const PrimaryBtn = ({ busy, onClick, children }) => (
-  <button onClick={onClick} disabled={busy} style={{ fontFamily: sans, fontWeight: 600, fontSize: 15, borderRadius: 999, padding: "13px 22px", border: "none", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1, background: C.mokka, color: C.cream, boxShadow: "0 6px 16px rgba(122,92,67,.28)", marginTop: 4 }}>
+  <button className="lp-btn" onClick={onClick} disabled={busy} style={{ fontFamily: sans, fontWeight: 600, fontSize: 15, borderRadius: 999, padding: "14px 22px", minHeight: 48, border: "none", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1, background: G.primary, color: C.cream, boxShadow: "0 8px 20px rgba(94,70,50,.30), inset 0 1px 0 rgba(255,255,255,.16)", marginTop: 4 }}>
     {busy ? "Vent…" : children}
   </button>
 );

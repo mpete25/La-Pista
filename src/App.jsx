@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Trophy, MessageCircle, Calendar, User, ChevronRight, ChevronLeft, Send, Plus, Minus, X, Check, Clock, TrendingUp, Crown, Shield, Smartphone, ArrowLeft, Swords } from "lucide-react";
 import { DEMO_CENTER, PLATFORM } from "./config/center.js";
 import { centerSlugFromLocation, fetchCenterBySlug } from "./lib/center.js";
-import { C, shadow, softShadow, serif, sans } from "./theme.js";
+import { C, G, shadow, softShadow, serif, sans, globalCss } from "./theme.js";
+import { Avatar, Card, Eyebrow, H, Btn, Tag, Logo, CourtSVG, Chips, Bar, BallDot, BallLoader, BallBurst, CountUp, firstName } from "./components/ui.jsx";
 import { supabase } from "./lib/supabase.js";
 import { useAuth } from "./hooks/useAuth.js";
 import { setMonitoringUser } from "./lib/monitoring.js";
@@ -22,7 +23,7 @@ import {
 /* Demo mode: no Supabase configured -> the app runs on the in-memory seed data. */
 const IS_DEMO = !supabase;
 
-const adminInput = { fontFamily: "'Outfit', ui-sans-serif, system-ui, sans-serif", fontSize: 14, padding: "11px 14px", borderRadius: 12, border: "1px solid #E9DECB", background: "#F6F1E8", outline: "none" };
+const adminInput = { fontFamily: "'Outfit', ui-sans-serif, system-ui, sans-serif", fontSize: 16, padding: "11px 14px", borderRadius: 12, border: "1px solid #E9DECB", background: "#F6F1E8", outline: "none" };
 
 /* ================= HELPERS ================= */
 const mulberry32 = (a) => () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -30,8 +31,6 @@ const fmtDate = (iso) => { const d = new Date(iso + "T12:00:00"); return d.toLoc
 const fmtDateLong = (iso) => { const d = new Date(iso + "T12:00:00"); return d.toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long" }); };
 const fmtDeadline = (iso) => new Date(iso).toLocaleString("da-DK", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const shortDate = (iso) => { const d = new Date(iso + "T12:00:00"); return d.getDate() + "/" + (d.getMonth() + 1); };
-const initials = (name) => name.split(" ").map(n => n[0]).slice(0, 2).join("");
-const firstName = (name) => name.split(" ")[0];
 
 /* ELO-inspireret pointmodel: forventet score ud fra pointdifference */
 const K = 24, D = 400;
@@ -97,96 +96,6 @@ const seedThreads = () => ({
     { from: "me", text: "Ja, jeg er tilmeldt – vi ses kl. 19!", time: "08:20" },
   ],
 });
-
-/* ================= SMÅ BYGGESTEN ================= */
-const Avatar = ({ name, size = 40, ring = false }) => (
-  <div style={{ width: size, height: size, borderRadius: 999, background: `linear-gradient(135deg, ${C.beige}, ${C.line})`, color: C.mokkaDeep, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans, fontWeight: 600, fontSize: size * 0.36, letterSpacing: ".02em", border: ring ? `2px solid ${C.mokka}` : `1px solid ${C.line}`, flexShrink: 0 }}>
-    {initials(name)}
-  </div>
-);
-
-const Card = ({ children, style = {}, onClick, pad = 20 }) => (
-  <div onClick={onClick} style={{ background: C.cream, border: `1px solid ${C.line}`, borderRadius: 22, padding: pad, boxShadow: softShadow, cursor: onClick ? "pointer" : "default", ...style }}>{children}</div>
-);
-
-const Eyebrow = ({ children, style = {} }) => (
-  <div style={{ fontFamily: sans, fontSize: 11, fontWeight: 600, letterSpacing: ".18em", textTransform: "uppercase", color: C.muted, ...style }}>{children}</div>
-);
-
-const H = ({ children, size = 26, style = {} }) => (
-  <h2 style={{ fontFamily: serif, fontWeight: 600, fontSize: size, color: C.espresso, margin: 0, lineHeight: 1.15, ...style }}>{children}</h2>
-);
-
-const Btn = ({ children, onClick, kind = "primary", disabled, small, style = {} }) => {
-  const base = { fontFamily: sans, fontWeight: 600, fontSize: small ? 13 : 15, borderRadius: 999, padding: small ? "8px 16px" : "13px 22px", border: "1px solid transparent", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.45 : 1, transition: "transform .12s ease, box-shadow .12s ease", display: "inline-flex", alignItems: "center", gap: 8, justifyContent: "center" };
-  const kinds = {
-    primary: { background: C.mokka, color: C.cream, boxShadow: "0 6px 16px rgba(122,92,67,.28)" },
-    ghost: { background: "transparent", color: C.mokkaDeep, border: `1px solid ${C.line}` },
-    soft: { background: C.beige, color: C.mokkaDeep },
-    danger: { background: "transparent", color: C.clay, border: `1px solid ${C.clay}55` },
-  };
-  return <button disabled={disabled} onClick={onClick} onMouseDown={e => !disabled && (e.currentTarget.style.transform = "scale(.97)")} onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")} onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")} style={{ ...base, ...kinds[kind], ...style }}>{children}</button>;
-};
-
-const Tag = ({ children, tone = "beige" }) => {
-  const tones = { beige: [C.beige, C.mokkaDeep], olive: [C.olive + "22", C.olive], clay: [C.clay + "1e", C.clay], mokka: [C.mokka, C.cream], gold: [C.gold + "26", "#8a6b3c"] };
-  const [bg, col] = tones[tone];
-  return <span style={{ background: bg, color: col, fontFamily: sans, fontSize: 11.5, fontWeight: 600, padding: "4px 10px", borderRadius: 999, letterSpacing: ".04em", whiteSpace: "nowrap" }}>{children}</span>;
-};
-
-const Logo = ({ light = false, center }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden>
-      <defs><linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={C.gold} /><stop offset="1" stopColor={C.mokka} /></linearGradient></defs>
-      <path d="M4 19 a11 11 0 0 1 22 0" fill="url(#sun)" />
-      <line x1="2" y1="19" x2="28" y2="19" stroke={light ? C.cream : C.espresso} strokeWidth="2" strokeLinecap="round" />
-      <line x1="7" y1="24" x2="23" y2="24" stroke={light ? C.cream : C.mokka} strokeWidth="2" strokeLinecap="round" opacity=".55" />
-    </svg>
-    <div>
-      <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 19, letterSpacing: ".06em", color: light ? C.cream : C.espresso, lineHeight: 1, textTransform: "uppercase" }}>{center.name}</div>
-      <div style={{ fontFamily: sans, fontSize: 9.5, letterSpacing: ".3em", color: light ? C.cream + "bb" : C.muted, textTransform: "uppercase", marginTop: 2 }}>{center.city} · Rangliste</div>
-    </div>
-  </div>
-);
-
-/* Banevisualisering – makker & side */
-const CourtSVG = ({ left, right, meId, playersById }) => {
-  const nameChip = (pid, x, y, anchor) => {
-    const p = playersById[pid]; const me = pid === meId;
-    return (
-      <g key={pid + x}>
-        <rect x={x - 62} y={y - 15} width="124" height="30" rx="15" fill={me ? C.mokka : C.cream} stroke={me ? C.mokkaDeep : C.line} strokeWidth="1" />
-        <text x={x} y={y + 4.5} textAnchor="middle" fontFamily={sans} fontWeight="600" fontSize="12.5" fill={me ? C.cream : C.espresso}>{firstName(playersById[pid].name)}{me ? " (dig)" : ""}</text>
-      </g>
-    );
-  };
-  return (
-    <svg viewBox="0 0 400 230" style={{ width: "100%", display: "block" }}>
-      <rect x="14" y="14" width="372" height="202" rx="14" fill={C.beige} stroke={C.mokka} strokeWidth="2.5" />
-      <rect x="24" y="24" width="352" height="182" rx="8" fill="none" stroke={C.mokka} strokeWidth="1" opacity=".35" />
-      <line x1="200" y1="14" x2="200" y2="216" stroke={C.mokkaDeep} strokeWidth="3" />
-      <line x1="200" y1="14" x2="200" y2="216" stroke={C.cream} strokeWidth="1" strokeDasharray="4 6" />
-      <line x1="76" y1="115" x2="324" y2="115" stroke={C.mokka} strokeWidth="1.4" opacity=".6" />
-      <line x1="76" y1="24" x2="76" y2="206" stroke={C.mokka} strokeWidth="1.4" opacity=".6" />
-      <line x1="324" y1="24" x2="324" y2="206" stroke={C.mokka} strokeWidth="1.4" opacity=".6" />
-      <text x="107" y="34" fontFamily={sans} fontSize="10" letterSpacing="2" fill={C.mokkaDeep} opacity=".7">VENSTRE</text>
-      <text x="252" y="34" fontFamily={sans} fontSize="10" letterSpacing="2" fill={C.mokkaDeep} opacity=".7">HØJRE</text>
-      {nameChip(left[0], 110, 78)}
-      {nameChip(left[1], 110, 158)}
-      {nameChip(right[0], 290, 78)}
-      {nameChip(right[1], 290, 158)}
-    </svg>
-  );
-};
-
-/* Chip-vælger med dynamiske valgmuligheder (padel-regler) */
-const Chips = ({ options, value, onChange }) => (
-  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-    {options.map(n => (
-      <button key={n} onClick={() => onChange(n)} style={{ width: 38, height: 38, borderRadius: 12, border: `1.5px solid ${value === n ? C.mokka : C.line}`, background: value === n ? C.mokka : C.cream, color: value === n ? C.cream : C.espresso, fontFamily: sans, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>{n}</button>
-    ))}
-  </div>
-);
 
 /* ================= APP ================= */
 export default function App() {
@@ -358,6 +267,17 @@ export default function App() {
   }, [demo, isAdmin, tab, events]);
 
   const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
+
+  /* An open conversation stays scrolled to the newest message. */
+  const threadEndRef = useRef(null);
+  const openThreadLen = activeThread ? (threads[activeThread] || []).length : 0;
+  useEffect(() => {
+    const el = threadEndRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [activeThread, openThreadLen, tab]);
+
+  /* A new view starts at the top, like a native app. */
+  useEffect(() => { window.scrollTo(0, 0); }, [tab, viewPlayerId, eventDetailId, activeThread]);
 
   const openThread = async (otherId) => {
     setActiveThread(otherId);
@@ -697,34 +617,126 @@ export default function App() {
   };
 
   /* ================= VIEWS ================= */
-  const renderRanking = () => (
-    <div>
-      <div style={{ padding: "26px 4px 18px" }}>
-        <Eyebrow>Ranglisten · {center.name}</Eyebrow>
-        <H size={30} style={{ marginTop: 6 }}>Sæsonen lige nu</H>
-        <p style={{ fontFamily: sans, color: C.muted, fontSize: 14, margin: "8px 0 0", lineHeight: 1.5 }}>{players.length} aktive spillere · alle starter på 500 point · opdateret efter hver kampdag</p>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {ranked.map((p, i) => (
-          <Card key={p.id} onClick={() => { setViewPlayerId(p.id); setTab("profil"); }} pad={14} style={{ display: "flex", alignItems: "center", gap: 14, border: p.id === ME ? `1.5px solid ${C.mokka}` : `1px solid ${C.line}` }}>
-            <div style={{ width: 34, textAlign: "center", fontFamily: serif, fontWeight: 700, fontSize: i < 3 ? 22 : 17, color: i === 0 ? C.gold : i < 3 ? C.mokka : C.muted }}>{i + 1}</div>
-            <Avatar name={p.name} ring={i === 0} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 15.5, color: C.espresso, display: "flex", alignItems: "center", gap: 7 }}>
-                {p.name}{i === 0 && <Crown size={15} color={C.gold} fill={C.gold} />}{p.id === ME && <Tag tone="mokka">dig</Tag>}
+  const lastDelta = (p) => (p.history.length ? p.history[p.history.length - 1].delta : null);
+  const Trend = ({ delta, light = false }) => {
+    if (delta === null || delta === undefined) return null;
+    if (delta === 0) return <span style={{ fontFamily: sans, fontSize: 12, fontWeight: 600, color: light ? "rgba(255,253,248,.7)" : C.muted }}>±0</span>;
+    const up = delta > 0;
+    const col = light ? (up ? C.ball : "#F1B9A4") : (up ? C.olive : C.clay);
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontFamily: sans, fontSize: 12, fontWeight: 600, color: col }}>
+        <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden style={{ transform: up ? "none" : "rotate(180deg)" }}><path d="M5 1 L9.2 8.5 H0.8 Z" fill={col} /></svg>
+        {up ? "+" : ""}{delta}
+      </span>
+    );
+  };
+
+  /* Faint court lines used as texture on hero cards. */
+  const CourtLines = ({ opacity = 0.14 }) => (
+    <svg aria-hidden viewBox="0 0 400 220" preserveAspectRatio="xMidYMid slice" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity, pointerEvents: "none" }}>
+      <g fill="none" stroke="#FFFDF8" strokeWidth="1.5">
+        <rect x="150" y="-40" width="330" height="200" rx="10" transform="rotate(-14 315 60)" />
+        <line x1="315" y1="-60" x2="315" y2="180" transform="rotate(-14 315 60)" />
+        <line x1="215" y1="60" x2="415" y2="60" transform="rotate(-14 315 60)" />
+      </g>
+    </svg>
+  );
+
+  const renderRanking = () => {
+    const myRank = rankOf(ME);
+    const above = myRank > 1 ? ranked[myRank - 2] : null;
+    const below = myRank < ranked.length ? ranked[myRank] : null;
+    const gap = above ? above.points - me.points : 0;
+    // How far through the stretch between the player below and the one above.
+    const span = above && below ? Math.max(1, above.points - below.points) : null;
+    const progress = !above ? 1 : span ? (me.points - below.points) / span : 0.5;
+    const podium = ranked.length >= 3 ? [ranked[1], ranked[0], ranked[2]] : [];
+    const rest = podium.length ? ranked.slice(3) : ranked;
+    const openPlayer = (id) => { setViewPlayerId(id); setTab("profil"); };
+    const steps = { 1: { h: 84, bg: "linear-gradient(180deg, #EBD9AE, #D6BB84)", ink: "#6A5223" }, 2: { h: 60, bg: "linear-gradient(180deg, #EFE8DC, #DDD2C0)", ink: C.mokkaDeep }, 3: { h: 44, bg: "linear-gradient(180deg, #F0DDD0, #E2C3B1)", ink: "#8A4A33" } };
+    return (
+      <div>
+        <div style={{ padding: "24px 4px 16px" }}>
+          <Eyebrow>Ranglisten · {center.name}</Eyebrow>
+          <H size={30} style={{ marginTop: 6 }}>Sæsonen lige nu</H>
+        </div>
+
+        {/* Your position */}
+        <div className="lp-press" role="button" tabIndex={0} onClick={() => openPlayer(ME)} onKeyDown={e => e.key === "Enter" && openPlayer(ME)} style={{ position: "relative", overflow: "hidden", borderRadius: 26, padding: "20px 22px 18px", background: G.hero, color: C.cream, boxShadow: "0 18px 40px rgba(46,37,25,.28)", cursor: "pointer" }}>
+          <CourtLines />
+          <div aria-hidden style={{ position: "absolute", right: -30, top: -40, width: 170, height: 170, borderRadius: 999, background: "radial-gradient(circle, rgba(216,227,107,.30), rgba(216,227,107,0) 65%)", animation: "lp-drift 9s ease-in-out infinite" }} />
+          <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+            <div>
+              <div style={{ fontFamily: sans, fontSize: 11, fontWeight: 600, letterSpacing: ".18em", textTransform: "uppercase", opacity: .8 }}>Din placering</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
+                <span style={{ fontFamily: serif, fontWeight: 700, fontSize: 52, lineHeight: 1, letterSpacing: "-.02em" }}><span style={{ fontSize: 28, opacity: .7, marginRight: 2 }}>#</span><CountUp value={myRank} duration={600} /></span>
+                <span style={{ fontFamily: sans, fontSize: 14, opacity: .75 }}>af {ranked.length}</span>
               </div>
-              <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, marginTop: 2 }}>{p.wins} sejre · {p.losses} nederlag</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 19, color: C.espresso }}>{p.points}</div>
-              <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: ".12em", color: C.muted, textTransform: "uppercase" }}>point</div>
+              <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 30, lineHeight: 1 }}><CountUp value={me.points} /></div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, marginTop: 5 }}>
+                <span style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: ".14em", textTransform: "uppercase", opacity: .75 }}>point</span>
+                <Trend delta={lastDelta(me)} light />
+              </div>
             </div>
-            <ChevronRight size={18} color={C.line} />
-          </Card>
-        ))}
+          </div>
+          <div style={{ position: "relative", marginTop: 16 }}>
+            <Bar value={progress} height={7} fill={`linear-gradient(90deg, ${C.gold}, ${C.ball})`} track="rgba(255,253,248,.18)" />
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8, fontFamily: sans, fontSize: 12.5, opacity: .9 }}>
+              <span>{above ? <><b>{gap === 0 ? "Lige" : gap + " point"}</b> {gap === 0 ? "med" : "op til"} {firstName(above.name)} (#{myRank - 1})</> : <b>Du fører ranglisten</b>}</span>
+              <span style={{ opacity: .75, whiteSpace: "nowrap" }}>{me.wins} S · {me.losses} N</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Podium */}
+        {podium.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.12fr 1fr", gap: 10, alignItems: "end", margin: "26px 2px 0" }}>
+            {podium.map((p) => {
+              const place = rankOf(p.id), st = steps[place], first = place === 1;
+              return (
+                <button key={p.id} className="lp-btn lp-fade" onClick={() => openPlayer(p.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0, animationDelay: `${0.1 + (place - 1) * 0.08}s` }}>
+                  {first && <Crown size={20} color={C.gold} fill={C.gold} className="lp-pop" style={{ marginBottom: 4, animationDelay: ".5s" }} />}
+                  <Avatar name={p.name} size={first ? 66 : 52} ring ringColor={first ? C.gold : p.id === ME ? C.court : C.line} />
+                  <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 13.5, color: C.espresso, marginTop: 8, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{firstName(p.name)}{p.id === ME ? " (dig)" : ""}</div>
+                  <div style={{ fontFamily: serif, fontWeight: 700, fontSize: first ? 19 : 16.5, color: C.espresso, marginTop: 1 }}>{p.points}</div>
+                  <div className="lp-growy" style={{ width: "100%", height: st.h, marginTop: 8, borderRadius: "16px 16px 6px 6px", background: st.bg, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 8, fontFamily: serif, fontWeight: 700, fontSize: first ? 26 : 20, color: st.ink, boxShadow: "inset 0 1px 0 rgba(255,255,255,.6)", animationDelay: `${0.15 + (3 - place) * 0.1}s` }}>{place}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "24px 4px 10px" }}>
+          <Eyebrow>{podium.length ? "Resten af feltet" : "Alle spillere"}</Eyebrow>
+          <span style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{players.length} spillere · alle starter på 500</span>
+        </div>
+        <div className="lp-stagger" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rest.map((p) => {
+            const place = rankOf(p.id), mine = p.id === ME;
+            return (
+              <Card key={p.id} onClick={() => openPlayer(p.id)} pad={12} style={{ display: "flex", alignItems: "center", gap: 12, ...(mine ? { border: `1.5px solid ${C.court}`, background: G.cool } : {}) }}>
+                <div style={{ width: 28, textAlign: "center", fontFamily: serif, fontWeight: 700, fontSize: 16, color: mine ? C.courtDeep : C.muted }}>{place}</div>
+                <Avatar name={p.name} size={40} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 15, color: C.espresso, display: "flex", alignItems: "center", gap: 7 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>{mine && <Tag tone="court">dig</Tag>}
+                  </div>
+                  <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, marginTop: 2, display: "flex", alignItems: "center", gap: 8 }}>{p.wins} S · {p.losses} N <Trend delta={lastDelta(p)} /></div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 19, color: C.espresso, lineHeight: 1.1 }}>{p.points}</div>
+                  <div style={{ fontFamily: sans, fontSize: 10, letterSpacing: ".12em", color: C.muted, textTransform: "uppercase" }}>point</div>
+                </div>
+                <ChevronRight size={17} color={C.muted} style={{ opacity: .5 }} />
+              </Card>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   /* ---- My account: phone, SMS consent, data export, deletion (GDPR) ---- */
   const accountAction = async (fn) => {
@@ -851,45 +863,65 @@ export default function App() {
     const own = p.id === ME;
     const chart = p.history.map(h => ({ d: shortDate(h.date), point: h.after }));
     const winrate = Math.round((p.wins / Math.max(1, p.wins + p.losses)) * 100);
+    const rank = rankOf(p.id);
+    const last = p.history[p.history.length - 1];
     return (
       <div>
-        {!own && <button onClick={() => { setViewPlayerId(null); setTab("rangliste"); }} style={{ background: "none", border: "none", color: C.mokka, fontFamily: sans, fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6, padding: "18px 0 0", cursor: "pointer" }}><ArrowLeft size={16} /> Rangliste</button>}
-        <div style={{ padding: "24px 4px 18px", display: "flex", alignItems: "center", gap: 16 }}>
-          <Avatar name={p.name} size={64} ring />
-          <div style={{ flex: 1 }}>
-            <H size={26}>{p.name}</H>
-            <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, marginTop: 4 }}>Medlem siden {new Date(p.joined).toLocaleDateString("da-DK", { month: "long", year: "numeric" })}</div>
+        {!own && backBtn("Rangliste", () => { setViewPlayerId(null); setTab("rangliste"); })}
+        <div style={{ position: "relative", overflow: "hidden", borderRadius: 26, padding: "22px 20px 18px", marginTop: own ? 22 : 10, background: G.hero, color: C.cream, boxShadow: "0 18px 40px rgba(46,37,25,.26)" }}>
+          <CourtLines />
+          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 14 }}>
+            <Avatar name={p.name} size={66} ring ringColor={rank === 1 ? C.gold : C.ball} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 24, lineHeight: 1.15, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{p.name}{rank === 1 && <Crown size={18} color={C.ball} fill={C.ball} />}</div>
+              <div style={{ fontFamily: sans, fontSize: 13, opacity: .8, marginTop: 4 }}>Medlem siden {new Date(p.joined).toLocaleDateString("da-DK", { month: "long", year: "numeric" })}</div>
+            </div>
+            {own && <button className="lp-btn" onClick={signOut} style={{ alignSelf: "flex-start", background: "rgba(255,253,248,.14)", border: "1px solid rgba(255,253,248,.24)", color: C.cream, fontFamily: sans, fontWeight: 600, fontSize: 12.5, padding: "7px 13px", borderRadius: 999, cursor: "pointer", whiteSpace: "nowrap" }}>Log ud</button>}
           </div>
-          {!own && <Btn small kind="soft" onClick={() => { openThread(p.id); setTab("beskeder"); }}><MessageCircle size={15} /> Besked</Btn>}
-          {own && <Btn small kind="ghost" onClick={signOut}>Log ud</Btn>}
+          <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 18 }}>
+            {[[<><span style={{ fontSize: 15, opacity: .7 }}>#</span><CountUp value={rank} duration={600} /></>, "Placering"], [<CountUp value={p.points} />, "Point"], [<CountUp value={winrate} suffix="%" />, "Sejrsrate"]].map(([v, l]) => (
+              <div key={l} style={{ textAlign: "center", background: "rgba(255,253,248,.12)", border: "1px solid rgba(255,253,248,.16)", borderRadius: 16, padding: "11px 4px 10px", backdropFilter: "blur(4px)" }}>
+                <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 23, lineHeight: 1.1 }}>{v}</div>
+                <div style={{ fontFamily: sans, fontSize: 10, fontWeight: 600, letterSpacing: ".14em", textTransform: "uppercase", opacity: .75, marginTop: 4 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ position: "relative", marginTop: 14 }}>
+            <div style={{ display: "flex", height: 7, borderRadius: 999, overflow: "hidden", background: "rgba(255,253,248,.18)" }}>
+              <div className="lp-grow" style={{ width: `${winrate}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.ball})`, borderRadius: 999 }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: sans, fontSize: 12, opacity: .85, marginTop: 7 }}><span><b>{p.wins}</b> sejre</span><span><b>{p.losses}</b> nederlag</span></div>
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-          {[["# " + rankOf(p.id), "Placering"], [p.points, "Point"], [winrate + "%", "Sejrsrate"]].map(([v, l]) => (
-            <Card key={l} pad={16} style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 23, color: C.espresso }}>{v}</div>
-              <Eyebrow style={{ marginTop: 4, letterSpacing: ".12em" }}>{l}</Eyebrow>
-            </Card>
-          ))}
-        </div>
+        {!own && <Btn kind="court" onClick={() => { openThread(p.id); setTab("beskeder"); }} style={{ width: "100%", marginTop: 12 }}><MessageCircle size={16} /> Skriv til {firstName(p.name)}</Btn>}
         <Card style={{ marginTop: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div><Eyebrow>Progression</Eyebrow><H size={19} style={{ marginTop: 4 }}>Pointudvikling</H></div>
-            <Tag tone={p.history.length && p.history[p.history.length - 1].delta >= 0 ? "olive" : "clay"}><TrendingUp size={11} style={{ verticalAlign: "-1.5px", marginRight: 3 }} />{p.history.length ? (p.history[p.history.length - 1].delta >= 0 ? "+" : "") + p.history[p.history.length - 1].delta + " sidst" : "–"}</Tag>
+            {p.history.length > 0 && <Tag tone={last.delta >= 0 ? "olive" : "clay"}><TrendingUp size={11} style={{ transform: last.delta >= 0 ? "none" : "scaleY(-1)" }} />{(last.delta >= 0 ? "+" : "") + last.delta} sidst</Tag>}
           </div>
-          <div style={{ height: 190, marginTop: 14, marginLeft: -12 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chart}>
-                <CartesianGrid stroke={C.line} strokeDasharray="3 6" vertical={false} />
-                <XAxis dataKey="d" tick={{ fontFamily: sans, fontSize: 11, fill: C.muted }} axisLine={{ stroke: C.line }} tickLine={false} />
-                <YAxis domain={["dataMin - 30", "dataMax + 30"]} tick={{ fontFamily: sans, fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} width={42} />
-                <Tooltip contentStyle={{ fontFamily: sans, fontSize: 13, borderRadius: 14, border: `1px solid ${C.line}`, boxShadow: softShadow, background: C.cream }} labelStyle={{ color: C.muted }} formatter={(v) => [v + " point", ""]} separator="" />
-                <Line type="monotone" dataKey="point" stroke={C.mokka} strokeWidth={2.5} dot={{ r: 3.5, fill: C.mokka, strokeWidth: 0 }} activeDot={{ r: 5, fill: C.mokkaDeep }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {chart.length < 2 ? (
+            <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, textAlign: "center", padding: "30px 10px 20px", lineHeight: 1.5 }}>Kurven dukker op, når {own ? "du" : firstName(p.name)} har spillet et par kampdage.</div>
+          ) : (
+            <div style={{ height: 190, marginTop: 14, marginLeft: -12 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chart} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="pointFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={C.court} stopOpacity=".32" /><stop offset="1" stopColor={C.court} stopOpacity="0" /></linearGradient>
+                    <linearGradient id="pointLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor={C.gold} /><stop offset="1" stopColor={C.court} /></linearGradient>
+                  </defs>
+                  <CartesianGrid stroke={C.line} strokeDasharray="3 6" vertical={false} />
+                  <XAxis dataKey="d" tick={{ fontFamily: sans, fontSize: 11, fill: C.muted }} axisLine={{ stroke: C.line }} tickLine={false} />
+                  <YAxis domain={["dataMin - 30", "dataMax + 30"]} tick={{ fontFamily: sans, fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} width={42} />
+                  <Tooltip cursor={{ stroke: C.court, strokeOpacity: .35 }} contentStyle={{ fontFamily: sans, fontSize: 13, borderRadius: 14, border: `1px solid ${C.line}`, boxShadow: softShadow, background: C.cream }} labelStyle={{ color: C.muted }} formatter={(v) => [v + " point", ""]} separator="" />
+                  <Area type="monotone" dataKey="point" stroke="url(#pointLine)" strokeWidth={3} fill="url(#pointFade)" dot={{ r: 3.5, fill: C.cream, stroke: C.court, strokeWidth: 2 }} activeDot={{ r: 6, fill: C.ball, stroke: C.courtDeep, strokeWidth: 2 }} animationDuration={900} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </Card>
         <div style={{ padding: "22px 4px 10px" }}><Eyebrow>Kamphistorik</Eyebrow><H size={19} style={{ marginTop: 4 }}>Seneste kampdage</H></div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="lp-stagger" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {p.history.length === 0 && <Card pad={18} style={{ textAlign: "center", background: G.warm, fontFamily: sans, fontSize: 13.5, color: C.mokkaDeep, lineHeight: 1.5 }}>Ingen kampdage endnu. {own ? "Tilmeld dig en ranglistedag under Kampe." : ""}</Card>}
           {[...p.history].reverse().map((h, hi) => {
             const key = p.id + "-" + hi;
             const open = expandedHist === key;
@@ -913,7 +945,7 @@ export default function App() {
                   </div>
                 </div>
                 {open && (
-                  <div style={{ marginTop: 12 }}>
+                  <div className="lp-fade" style={{ marginTop: 12 }}>
                     <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginBottom: 8 }}>{fmtDateLong(h.date)}{h.placement ? ` · nr. ${h.placement} på banen` : ""} · {h.after} point efter dagen</div>
                     {!demo && h.eventId && !histSets[key] && <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginBottom: 8 }}>Henter sæt …</div>}
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -958,115 +990,173 @@ export default function App() {
         }
       };
       return (
-        <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 170px)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 4px 14px", borderBottom: `1px solid ${C.line}` }}>
-            <button onClick={() => setActiveThread(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><ArrowLeft size={20} color={C.mokka} /></button>
-            <Avatar name={other.name} size={40} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 15, color: C.espresso }}>{other.name}</div>
-              <div style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>#{rankOf(other.id)} · {other.points} point</div>
-            </div>
-            <Btn small kind="ghost" onClick={() => { setViewPlayerId(other.id); setTab("profil"); }}>Profil</Btn>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px 2px", display: "flex", flexDirection: "column", gap: 8 }}>
-            {msgs.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.from === "me" ? "flex-end" : "flex-start", maxWidth: "78%" }}>
-                <div style={{ background: m.from === "me" ? C.mokka : C.cream, color: m.from === "me" ? C.cream : C.espresso, border: m.from === "me" ? "none" : `1px solid ${C.line}`, borderRadius: m.from === "me" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", padding: "10px 14px", fontFamily: sans, fontSize: 14.5, lineHeight: 1.45, boxShadow: softShadow }}>{m.text}</div>
-                <div style={{ fontFamily: sans, fontSize: 10.5, color: C.muted, marginTop: 3, textAlign: m.from === "me" ? "right" : "left" }}>{m.time}</div>
+        <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 158px - env(safe-area-inset-top) - env(safe-area-inset-bottom))", marginBottom: "calc(-100px - env(safe-area-inset-bottom))" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 0 12px", borderBottom: `1px solid ${C.line}` }}>
+            <button className="lp-btn" aria-label="Tilbage til indbakken" onClick={() => setActiveThread(null)} style={{ background: C.cream, border: `1px solid ${C.line}`, borderRadius: 999, width: 38, height: 38, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ArrowLeft size={18} color={C.mokka} /></button>
+            <div role="button" tabIndex={0} onClick={() => { setViewPlayerId(other.id); setTab("profil"); }} onKeyDown={e => e.key === "Enter" && (setViewPlayerId(other.id), setTab("profil"))} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, cursor: "pointer" }}>
+              <Avatar name={other.name} size={40} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 15, color: C.espresso }}>{other.name}</div>
+                <div style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>#{rankOf(other.id)} · {other.points} point</div>
               </div>
-            ))}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 8, padding: "10px 0 4px" }}>
-            <input value={msgDraft} onChange={e => setMsgDraft(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Skriv en besked …" style={{ flex: 1, fontFamily: sans, fontSize: 14.5, padding: "13px 18px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.cream, color: C.espresso, outline: "none" }} />
-            <button onClick={send} style={{ width: 46, height: 46, borderRadius: 999, background: C.mokka, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 16px rgba(122,92,67,.3)" }}><Send size={18} color={C.cream} /></button>
+          <div ref={threadEndRef} style={{ flex: 1, overflowY: "auto", padding: "16px 2px", display: "flex", flexDirection: "column", gap: 8 }}>
+            {msgs.length === 0 && <div style={{ margin: "auto", textAlign: "center", fontFamily: sans, fontSize: 13.5, color: C.muted, lineHeight: 1.5 }}>Skriv til {firstName(other.name)} – f.eks. for at aftale en træningskamp.</div>}
+            {msgs.map((m, i) => {
+              const mine = m.from === "me";
+              return (
+                <div key={m.id || i} className="lp-fade" style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "80%" }}>
+                  <div style={{ background: mine ? G.primary : C.cream, color: mine ? C.cream : C.espresso, border: mine ? "none" : `1px solid ${C.line}`, borderRadius: mine ? "20px 20px 6px 20px" : "20px 20px 20px 6px", padding: "10px 15px", fontFamily: sans, fontSize: 15, lineHeight: 1.45, boxShadow: softShadow, overflowWrap: "anywhere" }}>{m.text}</div>
+                  <div style={{ fontFamily: sans, fontSize: 10.5, color: C.muted, marginTop: 3, padding: "0 6px", textAlign: mine ? "right" : "left" }}>{m.time}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 8, padding: "10px 0 12px" }}>
+            <input value={msgDraft} onChange={e => setMsgDraft(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Skriv en besked …" aria-label="Besked" enterKeyHint="send" style={{ flex: 1, minWidth: 0, fontFamily: sans, fontSize: 16, padding: "12px 18px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.cream, color: C.espresso, outline: "none" }} />
+            <button className="lp-btn" aria-label="Send" onClick={send} disabled={!msgDraft.trim()} style={{ width: 48, height: 48, borderRadius: 999, background: G.court, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px rgba(44,89,97,.3)", opacity: msgDraft.trim() ? 1 : .45, flexShrink: 0 }}><Send size={18} color={C.cream} /></button>
           </div>
         </div>
       );
     }
-    const threadIds = Object.keys(threads);
+    const threadIds = Object.keys(threads).filter(id => playersById[id] && threads[id].length > 0);
     return (
       <div>
-        <div style={{ padding: "26px 4px 18px" }}><Eyebrow>Beskeder</Eyebrow><H size={30} style={{ marginTop: 6 }}>Indbakke</H></div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {threadIds.filter(id => playersById[id] && threads[id].length > 0).map(id => {
+        <div style={{ padding: "24px 4px 16px" }}><Eyebrow>Beskeder</Eyebrow><H size={30} style={{ marginTop: 6 }}>Indbakke</H></div>
+        <div className="lp-stagger" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {threadIds.map(id => {
             const last = threads[id][threads[id].length - 1];
             const unread = threads[id].filter(m => m.unread).length;
             return (
-              <Card key={id} pad={14} onClick={() => openThread(id)} style={{ display: "flex", gap: 13, alignItems: "center" }}>
+              <Card key={id} pad={14} onClick={() => openThread(id)} style={{ display: "flex", gap: 13, alignItems: "center", ...(unread ? { border: `1.5px solid ${C.court}`, background: G.cool } : {}) }}>
                 <Avatar name={playersById[id].name} size={46} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 15, color: C.espresso }}>{playersById[id].name}</div>
-                  <div style={{ fontFamily: sans, fontSize: 13, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>{last.from === "me" ? "Dig: " : ""}{last.text}</div>
+                  <div style={{ fontFamily: sans, fontWeight: unread ? 700 : 600, fontSize: 15, color: C.espresso }}>{playersById[id].name}</div>
+                  <div style={{ fontFamily: sans, fontSize: 13.5, fontWeight: unread ? 600 : 400, color: unread ? C.espresso : C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>{last.from === "me" ? "Dig: " : ""}{last.text}</div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
                   <div style={{ fontFamily: sans, fontSize: 11.5, color: C.muted }}>{last.time}</div>
-                  {unread > 0 && <span style={{ minWidth: 19, height: 19, padding: "0 6px", borderRadius: 999, background: C.mokka, color: C.cream, fontFamily: sans, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{unread}</span>}
+                  {unread > 0 && <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: C.ball, color: "#2F340C", fontFamily: sans, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{unread}</span>}
                 </div>
               </Card>
             );
           })}
-          <Card pad={16} style={{ textAlign: "center", background: C.beige, border: "none" }}>
-            <div style={{ fontFamily: sans, fontSize: 13.5, color: C.mokkaDeep }}>Start en ny samtale ved at åbne en spillers profil fra ranglisten</div>
+          <Card pad={18} onClick={() => setTab("rangliste")} style={{ display: "flex", alignItems: "center", gap: 14, background: G.warm }}>
+            <div style={{ width: 42, height: 42, borderRadius: 999, background: C.cream, border: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><MessageCircle size={19} color={C.mokka} /></div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14.5, color: C.espresso }}>{threadIds.length ? "Ny samtale" : "Ingen beskeder endnu"}</div>
+              <div style={{ fontFamily: sans, fontSize: 13, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>Find en spiller på ranglisten, og tryk "Besked" på profilen.</div>
+            </div>
+            <ChevronRight size={17} color={C.muted} style={{ opacity: .6 }} />
           </Card>
         </div>
       </div>
     );
   };
 
+  const backBtn = (label, onClick) => (
+    <button className="lp-btn" onClick={onClick} style={{ background: "none", border: "none", color: C.mokka, fontFamily: sans, fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6, padding: "18px 8px 4px 0", cursor: "pointer" }}><ArrowLeft size={16} /> {label}</button>
+  );
+
+  /* Calendar tile: weekday, day number, month. */
+  const DateTile = ({ iso, today, light = false }) => {
+    const d = new Date(iso + "T12:00:00");
+    const wd = d.toLocaleDateString("da-DK", { weekday: "short" }).replace(".", "");
+    const mo = d.toLocaleDateString("da-DK", { month: "short" }).replace(".", "");
+    const on = today || light;
+    return (
+      <div style={{ width: 58, flexShrink: 0, borderRadius: 16, padding: "8px 0 9px", textAlign: "center", background: light ? "rgba(255,253,248,.16)" : today ? G.court : G.warm, border: on ? "1px solid rgba(255,255,255,.22)" : `1px solid ${C.line}`, color: on ? C.cream : C.espresso, boxShadow: today && !light ? "0 8px 18px rgba(44,89,97,.25)" : "none" }}>
+        <div style={{ fontFamily: sans, fontSize: 10, fontWeight: 600, letterSpacing: ".14em", textTransform: "uppercase", opacity: on ? .85 : 1, color: on ? C.cream : C.muted }}>{wd}</div>
+        <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 24, lineHeight: 1.05 }}>{d.getDate()}</div>
+        <div style={{ fontFamily: sans, fontSize: 10.5, fontWeight: 500, letterSpacing: ".06em", opacity: on ? .85 : 1, color: on ? C.cream : C.muted }}>{mo}</div>
+      </div>
+    );
+  };
+
+  const spotsLabel = (ev) => {
+    const free = ev.capacity - ev.registered.length;
+    return free <= 0 ? "Fuldt booket" : free === 1 ? "1 plads tilbage" : `${free} pladser tilbage`;
+  };
+
   const renderEventDetail = (ev) => {
     const isIn = ev.registered.includes(ME), onWL = ev.waitlist.includes(ME);
     const full = ev.registered.length >= ev.capacity;
+    const today = ev.date === TODAY;
     const sorted = ev.registered.map(id => playersById[id]).sort((a, b) => b.points - a.points);
     return (
       <div>
-        <button onClick={() => setEventDetailId(null)} style={{ background: "none", border: "none", color: C.mokka, fontFamily: sans, fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6, padding: "18px 0 0", cursor: "pointer" }}><ArrowLeft size={16} /> Alle kampdage</button>
-        <div style={{ padding: "20px 4px 16px" }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <Eyebrow>{ev.title}</Eyebrow>
-            {ev.date === TODAY && <Tag tone="mokka">I dag</Tag>}
-            {full && <Tag tone="clay">Fuldt</Tag>}
+        {backBtn("Alle kampdage", () => setEventDetailId(null))}
+        <div style={{ position: "relative", overflow: "hidden", borderRadius: 26, padding: 20, marginTop: 10, background: G.hero, color: C.cream, boxShadow: "0 18px 40px rgba(46,37,25,.26)" }}>
+          <CourtLines />
+          <div style={{ position: "relative", display: "flex", gap: 14, alignItems: "center" }}>
+            <DateTile iso={ev.date} light />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                {today && <Tag tone="ball"><BallDot size={7} live />I dag</Tag>}
+                {isIn && <Tag tone="ball"><Check size={11} />Tilmeldt</Tag>}
+                {onWL && <Tag tone="gold">Venteliste nr. {ev.waitlist.indexOf(ME) + 1}</Tag>}
+              </div>
+              <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 23, lineHeight: 1.15, marginTop: 6 }}>{ev.title}</div>
+              <div style={{ fontFamily: sans, fontSize: 13, opacity: .85, marginTop: 4 }}>{fmtDateLong(ev.date)}</div>
+            </div>
           </div>
-          <H size={27} style={{ marginTop: 6 }}>{fmtDateLong(ev.date)}</H>
-          <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, marginTop: 8, display: "flex", gap: 14, flexWrap: "wrap" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Clock size={13} />kl. {ev.time} · 2 timer</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><User size={13} />{ev.registered.length}/{ev.capacity} pladser</span>
-            {ev.courtNames?.length > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Swords size={13} />Baner: {ev.courtNames.join(" · ")}</span>}
+          <div style={{ position: "relative", display: "flex", gap: 16, flexWrap: "wrap", marginTop: 16, fontFamily: sans, fontSize: 13, opacity: .92 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Clock size={14} />kl. {ev.time} · 2 timer</span>
+            {ev.courtNames?.length > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Swords size={14} />{ev.courtNames.join(" · ")}</span>}
+          </div>
+          <div style={{ position: "relative", marginTop: 14 }}>
+            <Bar value={ev.registered.length / ev.capacity} height={7} fill={`linear-gradient(90deg, ${C.gold}, ${C.ball})`} track="rgba(255,253,248,.18)" />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7, fontFamily: sans, fontSize: 12.5 }}>
+              <span><b>{ev.registered.length}</b> af {ev.capacity} pladser</span>
+              <span style={{ opacity: .8 }}>{spotsLabel(ev)}{ev.waitlist.length > 0 ? ` · ${ev.waitlist.length} på venteliste` : ""}</span>
+            </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-          {ev.date === TODAY && isIn && isPlayable(ev) && <Btn onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
+        <div style={{ display: "flex", gap: 8, margin: "14px 0 20px" }}>
+          {today && isIn && isPlayable(ev) && <Btn kind="court" onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
           {!isIn && !onWL && <Btn kind={full ? "soft" : "primary"} onClick={() => joinEvent(ev.id)} style={{ flex: 1 }}>{full ? "Skriv på venteliste" : "Tilmeld dig"}</Btn>}
           {(isIn || onWL) && (onWL || canSelfCancel(ev)
             ? <Btn kind="ghost" onClick={() => leaveEvent(ev.id)} style={{ flex: 1 }}>{onWL ? "Forlad venteliste" : "Afmeld"}</Btn>
             : <div style={{ flex: 1, alignSelf: "center", fontFamily: sans, fontSize: 12, color: C.muted, textAlign: "center", lineHeight: 1.4, padding: "8px 4px" }}>Afmelding er lukket (&lt;24 t) – kontakt centeret for afbud</div>)}
         </div>
+        {ev.pendingOffer && <div style={{ marginBottom: 18 }}><OfferBanner ev={ev} margin={0} /></div>}
         <Eyebrow style={{ padding: "0 4px" }}>Tilmeldte spillere ({ev.registered.length})</Eyebrow>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-          {sorted.map(p => (
-            <Card key={p.id} pad={12} onClick={() => { setViewPlayerId(p.id); setTab("profil"); }} style={{ display: "flex", alignItems: "center", gap: 12, border: p.id === ME ? `1.5px solid ${C.mokka}` : `1px solid ${C.line}` }}>
-              <Avatar name={p.name} size={36} />
-              <div style={{ flex: 1, fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso }}>{p.name}{p.id === ME && <Tag tone="mokka"> dig</Tag>}</div>
-              <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 16, color: C.espresso }}>{p.points} <span style={{ fontFamily: sans, fontSize: 10.5, color: C.muted, fontWeight: 500 }}>point</span></div>
-            </Card>
+        <div className="lp-stagger" style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+          {sorted.map((p, i) => (
+            <React.Fragment key={p.id}>
+              {/* Level matching: every four players form a court. */}
+              {i % 4 === 0 && sorted.length >= 4 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: i ? "8px 4px 0" : "0 4px", animation: "none" }}>
+                  <span style={{ fontFamily: sans, fontSize: 10.5, fontWeight: 600, letterSpacing: ".14em", textTransform: "uppercase", color: i + 4 <= sorted.length ? C.court : C.muted }}>{i + 4 <= sorted.length ? ((ev.courtNames && ev.courtNames[i / 4]) || "Bane " + (i / 4 + 1)) : "Mangler spillere til en bane"}</span>
+                  <span style={{ flex: 1, height: 1, background: C.line }} />
+                  {i === 0 && <span style={{ fontFamily: sans, fontSize: 11, color: C.muted }}>foreløbig fordeling</span>}
+                </div>
+              )}
+              <Card pad={11} onClick={() => { setViewPlayerId(p.id); setTab("profil"); }} style={{ display: "flex", alignItems: "center", gap: 12, ...(p.id === ME ? { border: `1.5px solid ${C.court}`, background: G.cool } : {}) }}>
+                <Avatar name={p.name} size={36} />
+                <div style={{ flex: 1, minWidth: 0, fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso, display: "flex", alignItems: "center", gap: 7 }}><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>{p.id === ME && <Tag tone="court">dig</Tag>}</div>
+                <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 16, color: C.espresso }}>{p.points} <span style={{ fontFamily: sans, fontSize: 10.5, color: C.muted, fontWeight: 500 }}>point</span></div>
+              </Card>
+            </React.Fragment>
           ))}
-          {ev.registered.length === 0 && <Card pad={16} style={{ textAlign: "center", background: C.beige, border: "none", fontFamily: sans, fontSize: 13, color: C.mokkaDeep }}>Ingen tilmeldte endnu – vær den første!</Card>}
+          {ev.registered.length === 0 && <Card pad={18} style={{ textAlign: "center", background: G.warm, fontFamily: sans, fontSize: 13.5, color: C.mokkaDeep }}>Ingen tilmeldte endnu – vær den første!</Card>}
         </div>
         {ev.waitlist.length > 0 && (
           <>
-            <Eyebrow style={{ padding: "18px 4px 0" }}>Venteliste ({ev.waitlist.length})</Eyebrow>
+            <Eyebrow style={{ padding: "20px 4px 0" }}>Venteliste ({ev.waitlist.length})</Eyebrow>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
               {ev.waitlist.map((pid, i) => (
-                <Card key={pid} pad={12} style={{ display: "flex", alignItems: "center", gap: 12, opacity: .85 }}>
+                <Card key={pid} pad={11} style={{ display: "flex", alignItems: "center", gap: 12, background: C.cream + "b0", borderStyle: "dashed" }}>
                   <span style={{ fontFamily: serif, fontWeight: 700, fontSize: 14, color: C.muted, width: 18, textAlign: "center" }}>{i + 1}</span>
                   <Avatar name={playersById[pid].name} size={32} />
-                  <div style={{ flex: 1, fontFamily: sans, fontWeight: 500, fontSize: 13.5, color: C.espresso }}>{playersById[pid].name}</div>
+                  <div style={{ flex: 1, fontFamily: sans, fontWeight: 500, fontSize: 13.5, color: C.espresso }}>{playersById[pid].name}{pid === ME ? " (dig)" : ""}</div>
                   <span style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{playersById[pid].points} point</span>
                 </Card>
               ))}
             </div>
           </>
         )}
-        {ev.pendingOffer && <OfferBanner ev={ev} margin={14} />}
       </div>
     );
   };
@@ -1095,52 +1185,64 @@ export default function App() {
   const renderEvents = () => {
     const detail = events.find(e => e.id === eventDetailId && e.status !== "afsluttet");
     if (detail) return renderEventDetail(detail);
+    const upcoming = events.filter(e => e.status !== "afsluttet");
     return (
     <div>
-      <div style={{ padding: "26px 4px 18px" }}>
+      <div style={{ padding: "24px 4px 16px" }}>
         <Eyebrow>Kommende kampe</Eyebrow>
         <H size={30} style={{ marginTop: 6 }}>Ranglistedage</H>
-        <p style={{ fontFamily: sans, color: C.muted, fontSize: 14, margin: "8px 0 0", lineHeight: 1.5 }}>Tilmeld dig – er der fyldt, kommer du på venteliste og får en SMS, når en plads bliver ledig.</p>
+        <p style={{ fontFamily: sans, color: C.muted, fontSize: 14, margin: "8px 0 0", lineHeight: 1.5 }}>Er der fyldt, kommer du på venteliste og får besked, når en plads bliver ledig.</p>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {events.filter(e => e.status !== "afsluttet").map(ev => {
+      <div className="lp-stagger" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {upcoming.length === 0 && (
+          <Card pad={26} style={{ textAlign: "center", background: G.warm }}>
+            <Calendar size={26} color={C.mokka} />
+            <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 18, marginTop: 8 }}>Ingen kampdage lige nu</div>
+            <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>Centeret har ikke lagt nye ranglistedage op endnu. Kig forbi igen snart.</div>
+          </Card>
+        )}
+        {upcoming.map(ev => {
           const isIn = ev.registered.includes(ME), onWL = ev.waitlist.includes(ME);
           const full = ev.registered.length >= ev.capacity;
           const today = ev.date === TODAY;
+          const fill = ev.registered.length / ev.capacity;
           return (
-            <Card key={ev.id} style={today ? { border: `1.5px solid ${C.mokka}`, background: `linear-gradient(160deg, ${C.cream}, ${C.beige}55)` } : {}}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <H size={19}>{ev.title}</H>
-                    {today && <Tag tone="mokka">I dag</Tag>}
-                    {full && !today && <Tag tone="clay">Fuldt</Tag>}
+            <Card key={ev.id} pad={16} style={today ? { border: `1.5px solid ${C.court}`, background: G.cool, boxShadow: "0 14px 34px rgba(44,89,97,.16)" } : {}}>
+              <div role="button" tabIndex={0} onClick={() => setEventDetailId(ev.id)} onKeyDown={e => e.key === "Enter" && setEventDetailId(ev.id)} style={{ display: "flex", gap: 14, alignItems: "center", cursor: "pointer" }}>
+                <DateTile iso={ev.date} today={today} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minHeight: 22 }}>
+                    {today && <Tag tone="ball"><BallDot size={7} live />I dag</Tag>}
+                    {isIn && <Tag tone="olive"><Check size={11} />Tilmeldt</Tag>}
+                    {onWL && <Tag tone="gold">Venteliste nr. {ev.waitlist.indexOf(ME) + 1}</Tag>}
+                    {full && !isIn && !onWL && <Tag tone="clay">Fuldt</Tag>}
                   </div>
-                  <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, marginTop: 6, display: "flex", gap: 14, flexWrap: "wrap" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Calendar size={13} />{fmtDateLong(ev.date)}</span>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Clock size={13} />kl. {ev.time}</span>
+                  <H size={19} style={{ marginTop: 4 }}>{ev.title}</H>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: C.muted, marginTop: 3, display: "inline-flex", alignItems: "center", gap: 5 }}><Clock size={13} />kl. {ev.time} · 2 timer</div>
+                </div>
+                <ChevronRight size={18} color={C.muted} style={{ opacity: .6, flexShrink: 0 }} />
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <Bar value={fill} fill={full ? `linear-gradient(90deg, ${C.gold}, ${C.clay})` : G.bar} />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
+                    {ev.registered.slice(0, 5).map((pid, i) => <div key={pid} style={{ marginLeft: i ? -6 : 0 }}><Avatar name={playersById[pid].name} size={28} /></div>)}
+                    {ev.registered.length > 5 && <div style={{ marginLeft: -6, minWidth: 28, height: 28, padding: "0 6px", borderRadius: 999, background: C.espresso, color: C.cream, fontFamily: sans, fontSize: 10.5, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,.7)" }}>+{ev.registered.length - 5}</div>}
+                  </div>
+                  <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, textAlign: "right" }}>
+                    <b style={{ color: C.espresso }}>{ev.registered.length}/{ev.capacity}</b> · {spotsLabel(ev)}{ev.waitlist.length > 0 ? ` · ${ev.waitlist.length} venter` : ""}
                   </div>
                 </div>
-                <div style={{ textAlign: "center", background: C.sand, borderRadius: 14, padding: "8px 12px", minWidth: 62 }}>
-                  <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 17, color: C.espresso }}>{ev.registered.length}<span style={{ color: C.muted, fontSize: 13 }}>/{ev.capacity}</span></div>
-                  <div style={{ fontFamily: sans, fontSize: 9.5, letterSpacing: ".1em", color: C.muted, textTransform: "uppercase" }}>Pladser</div>
-                </div>
               </div>
-              <div style={{ display: "flex", marginTop: 14, gap: 0 }}>
-                {ev.registered.slice(0, 7).map((pid, i) => <div key={pid} style={{ marginLeft: i ? -8 : 0 }}><Avatar name={playersById[pid].name} size={30} /></div>)}
-                {ev.registered.length > 7 && <div style={{ marginLeft: -8, width: 30, height: 30, borderRadius: 999, background: C.mokka, color: C.cream, fontFamily: sans, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>+{ev.registered.length - 7}</div>}
-                {ev.waitlist.length > 0 && <span style={{ marginLeft: 12, alignSelf: "center", fontFamily: sans, fontSize: 12, color: C.muted }}>{ev.waitlist.length} på venteliste</span>}
-              </div>
-              <button onClick={() => setEventDetailId(ev.id)} style={{ marginTop: 12, width: "100%", background: C.sand, border: `1px solid ${C.line}`, borderRadius: 12, padding: "10px 14px", fontFamily: sans, fontSize: 13, fontWeight: 600, color: C.mokkaDeep, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>Se deltagere & detaljer <ChevronRight size={15} /></button>
+
               {ev.pendingOffer && <OfferBanner ev={ev} margin={12} />}
-              <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                {today && isIn && isPlayable(ev) && <Btn onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
+              <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap", alignItems: "center" }}>
+                {today && isIn && isPlayable(ev) && <Btn kind="court" onClick={() => startMatchday(ev)} style={{ flex: 1 }}><Swords size={16} /> Gå til kampdagen</Btn>}
                 {!isIn && !onWL && <Btn kind={full ? "soft" : "primary"} onClick={() => joinEvent(ev.id)} style={{ flex: 1 }}>{full ? "Skriv på venteliste" : "Tilmeld dig"}</Btn>}
                 {(isIn || onWL) && (onWL || canSelfCancel(ev)
                   ? <Btn kind="ghost" onClick={() => leaveEvent(ev.id)} style={today && isIn ? {} : { flex: 1 }}>{onWL ? "Forlad venteliste" : "Afmeld"}</Btn>
-                  : <div style={{ alignSelf: "center", fontFamily: sans, fontSize: 12, color: C.muted, lineHeight: 1.4, padding: "8px 4px", ...(today && isIn ? {} : { flex: 1, textAlign: "center" }) }}>Afmelding er lukket (&lt;24 t) – kontakt centeret</div>)}
-                {isIn && !today && <Tag tone="olive"><Check size={11} style={{ verticalAlign: "-1.5px", marginRight: 3 }} />Tilmeldt</Tag>}
-                {onWL && <Tag tone="gold">Venteliste nr. {ev.waitlist.indexOf(ME) + 1}</Tag>}
+                  : <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, lineHeight: 1.4, padding: "4px", flexBasis: "100%", textAlign: "center" }}>Afmelding er lukket (&lt;24 t) – kontakt centeret</div>)}
               </div>
             </Card>
           );
@@ -1151,41 +1253,52 @@ export default function App() {
   };
 
   const renderMatchday = () => {
-    if (!matchday) return <div style={{ padding: 40, textAlign: "center", fontFamily: sans, color: C.muted }}>Ingen aktiv kampdag. Gå til <b>Kampe</b> og start dagens begivenhed.</div>;
+    if (!matchday) return (
+      <div style={{ padding: "70px 20px", textAlign: "center" }}>
+        <div style={{ width: 70, height: 70, borderRadius: 999, background: G.warm, border: `1px solid ${C.line}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}><Swords size={28} color={C.mokka} /></div>
+        <H size={22}>Ingen aktiv kampdag</H>
+        <p style={{ fontFamily: sans, fontSize: 14, color: C.muted, margin: "8px 0 20px", lineHeight: 1.5 }}>Start dagens ranglistedag fra oversigten.</p>
+        <Btn onClick={() => setTab("kampe")}>Gå til Kampe</Btn>
+      </div>
+    );
     const md = matchday;
     const ev = events.find(e => e.id === md.eventId);
-    const minsLeft = Math.max(0, 120 - Math.floor((clock - md.startedAt) / 60000));
+    const minsLeft = Math.min(120, Math.max(0, 120 - Math.floor((clock - md.startedAt) / 60000)));
     const courtLabel = (i) => (ev?.courtNames && ev.courtNames[i]) || "Bane " + (i + 1);
+    const names = (ids) => ids.map(x => firstName(playersById[x].name)).join(" & ");
 
     if (md.stage === "lobby") return (
       <div>
-        <div style={{ padding: "26px 4px 16px" }}>
+        <div style={{ padding: "24px 4px 16px" }}>
           <Eyebrow>{ev.title} · kl. {ev.time}</Eyebrow>
           <H size={28} style={{ marginTop: 6 }}>Baner & niveaumatch</H>
-          <p style={{ fontFamily: sans, color: C.muted, fontSize: 14, margin: "8px 0 0", lineHeight: 1.55 }}>Spillerne er matchet på niveau – de fire tætteste point på hver bane. Kampdagen varer <b>2 timer</b>: I roterer holdene og spiller så mange sæt, I når. Kampen kan startes fra 10 min. før.</p>
+          <p style={{ fontFamily: sans, color: C.muted, fontSize: 14, margin: "8px 0 0", lineHeight: 1.55 }}>De fire tætteste på point deler bane. Kampdagen varer <b style={{ color: C.espresso }}>2 timer</b> – I roterer makkere og spiller så mange sæt, I når.</p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {md.courts.map((c, i) => (
-            <Card key={i} pad={16} style={i === md.myCourtIdx ? { border: `1.5px solid ${C.mokka}` } : {}}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 17, color: C.espresso }}>{courtLabel(i)}{i === md.myCourtIdx && <span style={{ fontFamily: sans, fontSize: 12, color: C.mokka, marginLeft: 8 }}>· din bane</span>}</div>
-                <Tag>Ø {Math.round(c.reduce((a, id) => a + playersById[id].points, 0) / 4)} point</Tag>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
-                {c.map(pid => (
-                  <div key={pid} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <Avatar name={playersById[pid].name} size={28} />
-                    <span style={{ flex: 1, fontFamily: sans, fontSize: 13.5, fontWeight: pid === ME ? 700 : 500, color: C.espresso }}>{playersById[pid].name}</span>
-                    <span style={{ fontFamily: sans, fontSize: 12.5, color: C.muted }}>{playersById[pid].points} p</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ))}
+        <div className="lp-stagger" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {md.courts.map((c, i) => {
+            const mine = i === md.myCourtIdx;
+            return (
+              <Card key={i} pad={16} style={mine ? { background: G.court, border: "1px solid rgba(255,255,255,.18)", color: C.cream, boxShadow: "0 16px 34px rgba(44,89,97,.28)", position: "relative", overflow: "hidden" } : {}}>
+                {mine && <CourtLines opacity={0.12} />}
+                <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 18, color: mine ? C.cream : C.espresso, display: "flex", alignItems: "center", gap: 8 }}>{courtLabel(i)}{mine && <Tag tone="ball">Din bane</Tag>}</div>
+                  <span style={{ fontFamily: sans, fontSize: 12, color: mine ? "rgba(255,253,248,.8)" : C.muted }}>Ø {Math.round(c.reduce((a, id) => a + playersById[id].points, 0) / c.length)} point</span>
+                </div>
+                <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 7, marginTop: 12 }}>
+                  {c.map(pid => (
+                    <div key={pid} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Avatar name={playersById[pid].name} size={30} />
+                      <span style={{ flex: 1, fontFamily: sans, fontSize: 14, fontWeight: pid === ME ? 700 : 500, color: mine ? C.cream : C.espresso }}>{playersById[pid].name}{pid === ME ? " (dig)" : ""}</span>
+                      <span style={{ fontFamily: sans, fontSize: 12.5, color: mine ? "rgba(255,253,248,.8)" : C.muted }}>{playersById[pid].points} p</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
         </div>
-        <div style={{ position: "sticky", bottom: 86, marginTop: 16 }}>
-          <Btn onClick={() => setMatchday({ ...md, stage: "bane", startedAt: Date.now() })} style={{ width: "100%" }}><Swords size={17} /> Start kamp – {courtLabel(md.myCourtIdx)}</Btn>
-          <div style={{ textAlign: "center", fontFamily: sans, fontSize: 12, color: C.muted, marginTop: 8 }}>Åbnet · kampstart om 8 min.</div>
+        <div style={{ position: "sticky", bottom: "calc(88px + env(safe-area-inset-bottom))", marginTop: 16, zIndex: 5 }}>
+          <Btn onClick={() => setMatchday({ ...md, stage: "bane", startedAt: Date.now() })} style={{ width: "100%", boxShadow: "0 12px 28px rgba(46,37,25,.38), inset 0 1px 0 rgba(255,255,255,.16)" }}><Swords size={17} /> Start kamp – {courtLabel(md.myCourtIdx)}</Btn>
         </div>
       </div>
     );
@@ -1197,72 +1310,88 @@ export default function App() {
 
     if (md.stage === "bane") return (
       <div>
-        <div style={{ padding: "26px 4px 14px", textAlign: "center" }}>
-          <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 8 }}>
-            <Tag tone="gold">{courtLabel(md.myCourtIdx)}</Tag>
-            <Tag><Clock size={11} style={{ verticalAlign: "-1.5px", marginRight: 4 }} />{minsLeft} min tilbage</Tag>
+        <div style={{ padding: "22px 4px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Tag tone="court"><BallDot size={7} live />{courtLabel(md.myCourtIdx)}</Tag>
             <Tag tone="mokka">Sæt {md.round + 1}</Tag>
+            <span style={{ marginLeft: "auto", fontFamily: sans, fontSize: 12.5, fontWeight: 600, color: minsLeft <= 10 ? C.clay : C.muted, display: "inline-flex", alignItems: "center", gap: 5 }}><Clock size={13} />{minsLeft} min tilbage</span>
           </div>
-          <H size={26}>Din opstilling</H>
-          <p style={{ fontFamily: sans, fontSize: 13, color: C.muted, margin: "6px 0 0" }}>Holdkombination {comboNo} af 3 – rotationen fortsætter, så længe der er tid</p>
+          <Bar value={1 - minsLeft / 120} height={5} fill={minsLeft <= 10 ? `linear-gradient(90deg, ${C.gold}, ${C.clay})` : G.bar} style={{ marginTop: 10 }} />
+          <H size={26} style={{ marginTop: 16 }}>Din opstilling</H>
+          <p style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, margin: "5px 0 0" }}>Holdkombination {comboNo} af 3 · makkerne roterer efter hvert sæt</p>
         </div>
-        <Card pad={14}>
-          <CourtSVG left={pr.left} right={pr.right} meId={ME} playersById={playersById} />
-          <div style={{ marginTop: 12, background: C.sand, borderRadius: 14, padding: "12px 16px", fontFamily: sans, fontSize: 14, color: C.espresso, textAlign: "center", lineHeight: 1.5 }}>
-            Din makker er <b>{firstName(playersById[myPartner].name)}</b> – I starter i <b>{meLeft ? "venstre" : "højre"} side</b>
+        <Card pad={12} style={{ overflow: "hidden" }}>
+          <CourtSVG key={md.round} left={pr.left} right={pr.right} meId={ME} playersById={playersById} />
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "12px 4px 4px" }}>
+            <Avatar name={playersById[myPartner].name} size={42} ring ringColor={C.court} />
+            <div style={{ fontFamily: sans, fontSize: 14, color: C.espresso, lineHeight: 1.45 }}>
+              Din makker er <b>{firstName(playersById[myPartner].name)}</b><br />
+              <span style={{ color: C.muted, fontSize: 13 }}>I starter i <b style={{ color: C.courtDeep }}>{meLeft ? "venstre" : "højre"} side</b></span>
+            </div>
           </div>
         </Card>
+        <Btn kind="court" onClick={() => setMatchday({ ...md, stage: "score" })} style={{ width: "100%", marginTop: 14 }}>Sættet er spillet – indtast resultat</Btn>
         {md.results.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
-            {md.results.map((r, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: sans, fontSize: 12.5, color: C.muted, background: C.cream, border: `1px solid ${C.line}`, borderRadius: 12, padding: "8px 14px" }}>
-                <span style={{ fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", fontSize: 10.5 }}>S{i + 1}</span>
-                <span style={{ flex: 1 }}>{r.left.map(x => firstName(playersById[x].name)).join(" & ")} vs. {r.right.map(x => firstName(playersById[x].name)).join(" & ")}</span>
-                <b style={{ color: C.espresso }}>{r.score[0]}–{r.score[1]}</b>
-              </div>
-            ))}
-          </div>
+          <>
+            <Eyebrow style={{ padding: "22px 4px 8px" }}>Spillede sæt ({md.results.length})</Eyebrow>
+            <div className="lp-stagger" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {md.results.map((r, i) => {
+                const leftWon = r.score[0] > r.score[1];
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: sans, fontSize: 13, color: C.muted, background: C.cream, border: `1px solid ${C.line}`, borderRadius: 14, padding: "9px 14px" }}>
+                    <span style={{ fontWeight: 700, letterSpacing: ".06em", fontSize: 10.5, color: C.court, width: 20 }}>S{i + 1}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}><span style={{ color: leftWon ? C.espresso : C.muted, fontWeight: leftWon ? 600 : 400 }}>{names(r.left)}</span> <span style={{ opacity: .6 }}>vs.</span> <span style={{ color: leftWon ? C.muted : C.espresso, fontWeight: leftWon ? 400 : 600 }}>{names(r.right)}</span></span>
+                    <b style={{ fontFamily: serif, fontSize: 15, color: C.espresso }}>{r.score[0]}–{r.score[1]}</b>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
-        <Btn onClick={() => setMatchday({ ...md, stage: "score" })} style={{ width: "100%", marginTop: 16 }}>Sættet er spillet – indtast resultat</Btn>
-        <Btn kind="ghost" disabled={md.results.length === 0} onClick={() => setMatchday({ ...md, stage: "point" })} style={{ width: "100%", marginTop: 8 }}><Trophy size={15} /> Afslut kampdag & beregn point</Btn>
-        <div style={{ textAlign: "center", fontFamily: sans, fontSize: 11.5, color: C.muted, marginTop: 8 }}>Når de 2 timer er gået: indtast jeres sidste sæt og afslut kampdagen her.</div>
+        <Btn kind="ghost" disabled={md.results.length === 0} onClick={() => setMatchday({ ...md, stage: "point" })} style={{ width: "100%", marginTop: 16 }}><Trophy size={15} /> Afslut kampdag & beregn point</Btn>
+        <div style={{ textAlign: "center", fontFamily: sans, fontSize: 12, color: C.muted, marginTop: 8, lineHeight: 1.45 }}>Når de 2 timer er gået: indtast jeres sidste sæt og afslut kampdagen her.</div>
       </div>
     );
 
     if (md.stage === "score") {
       const loserOptions = md.wScore === 7 ? [5, 6] : md.wScore === 6 ? [0, 1, 2, 3, 4] : [];
       const ok = md.winners && md.wScore !== null && md.lScore !== null;
+      const shown = (key) => (md.winners === key ? md.wScore : md.winners ? md.lScore : null);
       return (
         <div>
-          <div style={{ padding: "26px 4px 14px", textAlign: "center" }}>
+          <div style={{ padding: "24px 4px 14px", textAlign: "center" }}>
             <Eyebrow>Sæt {md.round + 1} · Resultat</Eyebrow>
             <H size={26} style={{ marginTop: 6 }}>Hvem vandt sættet?</H>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {[["L", pr.left, "Venstre"], ["R", pr.right, "Højre"]].map(([key, team, side]) => (
-              <Card key={key} pad={16} onClick={() => setMatchday({ ...md, winners: key })} style={{ textAlign: "center", border: md.winners === key ? `2px solid ${C.mokka}` : `1px solid ${C.line}`, background: md.winners === key ? C.beige : C.cream }}>
-                <Eyebrow style={{ letterSpacing: ".14em" }}>{side} side</Eyebrow>
-                <div style={{ display: "flex", justifyContent: "center", margin: "10px 0 8px" }}>
-                  <Avatar name={playersById[team[0]].name} size={34} /><div style={{ marginLeft: -8 }}><Avatar name={playersById[team[1]].name} size={34} /></div>
-                </div>
-                <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 13.5, color: C.espresso, lineHeight: 1.4 }}>{firstName(playersById[team[0]].name)} & {firstName(playersById[team[1]].name)}</div>
-                {md.winners === key && <Tag tone="mokka">Vinder <Check size={11} style={{ verticalAlign: "-1.5px" }} /></Tag>}
-              </Card>
-            ))}
+            {[["L", pr.left, "Venstre"], ["R", pr.right, "Højre"]].map(([key, team, side]) => {
+              const won = md.winners === key, sc = shown(key);
+              return (
+                <Card key={key} pad={14} onClick={() => setMatchday({ ...md, winners: key })} style={{ textAlign: "center", position: "relative", ...(won ? { border: `2px solid ${C.court}`, background: G.cool, boxShadow: "0 12px 26px rgba(44,89,97,.18)" } : { border: `2px solid transparent`, outline: `1px solid ${C.line}`, outlineOffset: -1 }) }}>
+                  <Eyebrow style={{ letterSpacing: ".14em", color: won ? C.courtDeep : C.muted }}>{side} side</Eyebrow>
+                  <div style={{ display: "flex", justifyContent: "center", margin: "10px 0 8px" }}>
+                    <Avatar name={playersById[team[0]].name} size={36} /><div style={{ marginLeft: -9 }}><Avatar name={playersById[team[1]].name} size={36} /></div>
+                  </div>
+                  <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 13.5, color: C.espresso, lineHeight: 1.4 }}>{names(team)}</div>
+                  <div key={String(sc)} className={sc !== null ? "lp-pop" : ""} style={{ fontFamily: serif, fontWeight: 700, fontSize: 40, lineHeight: 1.1, marginTop: 6, color: sc === null ? C.line : won ? C.courtDeep : C.espresso }}>{sc === null ? "–" : sc}</div>
+                  <div style={{ height: 24, marginTop: 2 }}>{won ? <Tag tone="ball"><Check size={11} />Vinder</Tag> : <span style={{ fontFamily: sans, fontSize: 12, color: C.muted }}>{md.winners ? "" : "Tryk for at vælge"}</span>}</div>
+                </Card>
+              );
+            })}
           </div>
-          <Card style={{ marginTop: 12 }}>
-            <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 13.5, color: C.espresso, marginBottom: 8 }}>Partier – vinderholdet</div>
-            <Chips options={[6, 7]} value={md.wScore} onChange={v => setMatchday({ ...md, wScore: v, lScore: null })} />
-            <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 13.5, color: C.espresso, margin: "16px 0 8px" }}>Partier – taberholdet</div>
+          <Card style={{ marginTop: 12, opacity: md.winners ? 1 : 0.55, transition: "opacity .25s" }}>
+            <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 13.5, color: C.espresso, marginBottom: 8 }}>Vinderholdets partier</div>
+            <Chips label="Vinderholdets partier" options={[6, 7]} value={md.wScore} onChange={v => setMatchday({ ...md, wScore: v, lScore: null })} />
+            <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 13.5, color: C.espresso, margin: "18px 0 8px" }}>Taberholdets partier</div>
             {md.wScore === null
-              ? <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted }}>Vælg vinderholdets partier først</div>
-              : <Chips options={loserOptions} value={md.lScore} onChange={v => setMatchday({ ...md, lScore: v })} />}
+              ? <div style={{ fontFamily: sans, fontSize: 13, color: C.muted }}>Vælg vinderholdets partier først</div>
+              : <div className="lp-fade" key={md.wScore}><Chips label="Taberholdets partier" options={loserOptions} value={md.lScore} onChange={v => setMatchday({ ...md, lScore: v })} /></div>}
             {md.wScore === 7 && <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>Et sæt vundet 7–5 afgøres efter 5–5, og 7–6 betyder tiebreak – derfor kan taberholdet kun have 5 eller 6 partier.</div>}
             {md.wScore === 6 && <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>Ved 6 vundne partier kan taberholdet have 0–4 – ved 5–5 spilles der videre til 7–5 eller 7–6.</div>}
           </Card>
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
             <Btn kind="ghost" onClick={() => setMatchday({ ...md, stage: "bane", winners: null, wScore: null, lScore: null })}><ChevronLeft size={16} /> Tilbage</Btn>
-            <Btn disabled={!ok} onClick={() => confirmSet(md)} style={{ flex: 1 }}>Gem sæt – holdene roterer</Btn>
+            <Btn kind="court" disabled={!ok} onClick={() => confirmSet(md)} style={{ flex: 1 }}>Gem sæt – holdene roterer</Btn>
           </div>
         </div>
       );
@@ -1272,35 +1401,41 @@ export default function App() {
       const rows = dayPoints(md);
       return (
         <div>
-          <div style={{ padding: "26px 4px 14px", textAlign: "center" }}>
+          <div style={{ padding: "24px 4px 14px", textAlign: "center" }}>
             <Eyebrow>{courtLabel(md.myCourtIdx)} · {md.results.length} sæt spillet</Eyebrow>
             <H size={26} style={{ marginTop: 6 }}>Dagens pointændringer</H>
-            <p style={{ fontFamily: sans, fontSize: 13, color: C.muted, margin: "8px 0 0", lineHeight: 1.55 }}>Formlen vægter pointdifferencen: Δ = K × (faktisk − forventet) pr. sæt. Slår du spillere med flere point, tjener du ekstra – taber du som favorit, koster det mere.</p>
+            <p style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, margin: "8px 0 0", lineHeight: 1.55 }}>Slår du spillere med flere point, tjener du ekstra – taber du som favorit, koster det mere.</p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {rows.map((r, i) => (
-              <Card key={r.pid} pad={16} style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 18, color: i === 0 ? C.gold : C.muted, width: 22, textAlign: "center" }}>{i + 1}</div>
-                <Avatar name={playersById[r.pid].name} size={40} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14.5, color: C.espresso }}>{playersById[r.pid].name}{r.pid === ME ? " (dig)" : ""}</div>
-                  <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginTop: 2 }}>{r.won}/{r.n} sæt vundet · forventet {Math.round(r.E * 100 / r.n)}% – faktisk {Math.round(r.S * 100 / r.n)}%</div>
-                </div>
-                <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 20, color: r.delta >= 0 ? C.olive : C.clay }}>{r.delta >= 0 ? "+" : ""}{r.delta}</div>
-              </Card>
-            ))}
+          <div className="lp-stagger" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {rows.map((r, i) => {
+              const mine = r.pid === ME;
+              return (
+                <Card key={r.pid} pad={14} style={{ display: "flex", alignItems: "center", gap: 12, ...(mine ? { border: `1.5px solid ${C.court}`, background: G.cool } : {}) }}>
+                  <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 18, color: i === 0 ? C.gold : C.muted, width: 22, textAlign: "center" }}>{i + 1}</div>
+                  <Avatar name={playersById[r.pid].name} size={40} ring={i === 0} ringColor={C.gold} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14.5, color: C.espresso }}>{playersById[r.pid].name}{mine ? " (dig)" : ""}</div>
+                    <div style={{ fontFamily: sans, fontSize: 12, color: C.muted, marginTop: 2 }}>{r.won}/{r.n} sæt vundet · forventet {Math.round(r.E * 100 / r.n)}% – faktisk {Math.round(r.S * 100 / r.n)}%</div>
+                  </div>
+                  <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 22, color: r.delta >= 0 ? C.olive : C.clay, minWidth: 44, textAlign: "right" }}><CountUp value={r.delta} prefix={r.delta >= 0 ? "+" : ""} /></div>
+                </Card>
+              );
+            })}
           </div>
-          <Btn onClick={() => applyMatchday(md)} style={{ width: "100%", marginTop: 16 }}><Trophy size={16} /> Godkend & opdater ranglisten</Btn>
+          <Btn kind="court" onClick={() => applyMatchday(md)} style={{ width: "100%", marginTop: 16 }}><Trophy size={16} /> Godkend & opdater ranglisten</Btn>
           <Btn kind="ghost" onClick={() => setMatchday({ ...md, stage: "bane" })} style={{ width: "100%", marginTop: 8 }}><ChevronLeft size={15} /> Tilbage – spil et sæt mere</Btn>
         </div>
       );
     }
 
     return (
-      <div style={{ textAlign: "center", padding: "60px 20px" }}>
-        <div style={{ width: 74, height: 74, borderRadius: 999, background: C.beige, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 18px" }}><Trophy size={32} color={C.mokka} /></div>
-        <H size={26}>Kampdagen er afsluttet</H>
-        <p style={{ fontFamily: sans, fontSize: 14, color: C.muted, margin: "10px 0 22px", lineHeight: 1.55 }}>Point, sejre og kamphistorik er registreret på alle fire spillere.</p>
+      <div style={{ textAlign: "center", padding: "110px 20px 40px" }}>
+        <div style={{ position: "relative", width: 92, height: 92, margin: "0 auto 20px" }}>
+          <BallBurst />
+          <div className="lp-pop" style={{ position: "relative", width: 92, height: 92, borderRadius: 999, background: G.hero, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 16px 36px rgba(46,37,25,.28)" }}><Trophy size={38} color={C.ball} /></div>
+        </div>
+        <H size={27}>Godt spillet!</H>
+        <p style={{ fontFamily: sans, fontSize: 14.5, color: C.muted, margin: "10px auto 22px", lineHeight: 1.55, maxWidth: 300 }}>Kampdagen er afsluttet. Point, sejre og kamphistorik er registreret for alle fire på banen.</p>
         <Btn onClick={() => { setMatchday(null); setTab("rangliste"); }}>Se den nye rangliste</Btn>
       </div>
     );
@@ -1472,47 +1607,49 @@ export default function App() {
   ];
 
   /* ---- Auth gate (real mode) ---- */
-  const centerScreen = (msg) => (
-    <div style={{ minHeight: "100vh", background: C.sand, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: sans, fontSize: 14, color: C.muted }}>{msg}</div>
+  const centerScreen = (msg, loading = false) => (
+    <div style={{ minHeight: "100dvh", background: G.page, display: "flex", alignItems: "center", justifyContent: "center", padding: 28 }}>
+      <style>{globalCss}</style>
+      {loading
+        ? <BallLoader label={msg} />
+        : <div className="lp-fade" style={{ fontFamily: sans, fontSize: 14.5, color: C.muted, textAlign: "center", maxWidth: 320, lineHeight: 1.55 }}>{msg}</div>}
+    </div>
   );
   if (!demo && centerError) return centerScreen(centerError);
-  if (!demo && !center) return centerScreen("Finder dit padelcenter…");
-  if (!demo && authLoading) return centerScreen("Indlæser…");
+  if (!demo && !center) return centerScreen("Finder dit padelcenter…", true);
+  if (!demo && authLoading) return centerScreen("Indlæser…", true);
   if (!demo && !session) return <AuthScreen center={center} />;
   if (!demo && needsPassword) return <SetPasswordScreen center={center} onDone={() => { passwordSet(); notify("Din adgangskode er gemt"); }} />;
-  if (!demo && !me) return centerScreen(dataLoaded
-    ? `Din bruger er logget ind, men har ingen spillerprofil hos ${center.name}. Kontakt centeret, så de kan oprette dig.`
-    : "Henter din profil…");
+  if (!demo && !me) return dataLoaded
+    ? centerScreen(`Din bruger er logget ind, men har ingen spillerprofil hos ${center.name}. Kontakt centeret, så de kan oprette dig.`)
+    : centerScreen("Henter din profil…", true);
+
+  const unreadTotal = Object.values(threads).reduce((n, msgs) => n + msgs.filter(m => m.unread).length, 0);
 
   return (
-    <div style={{ minHeight: "100vh", background: C.sand, fontFamily: sans, color: C.espresso }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Outfit:wght@300;400;500;600;700&display=swap');
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-thumb { background: ${C.line}; border-radius: 99px; }
-        button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid ${C.mokka}; outline-offset: 2px; }
-        @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .view { animation: rise .35s ease both; }
-        @media (prefers-reduced-motion: reduce) { .view { animation: none; } }
-      `}</style>
+    <div style={{ minHeight: "100dvh", background: C.sand, fontFamily: sans, color: C.espresso, position: "relative" }}>
+      <style>{globalCss}</style>
+      {/* Ambient wash behind everything; fixed so it does not scroll away. */}
+      <div aria-hidden style={{ position: "fixed", inset: 0, background: G.page, pointerEvents: "none", zIndex: 0 }} />
 
-      <header style={{ position: "sticky", top: 0, zIndex: 20, paddingTop: "env(safe-area-inset-top)", background: C.sand + "e6", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.line}` }}>
-        <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Logo center={center} />
+      <header style={{ position: "sticky", top: 0, zIndex: 20, paddingTop: "env(safe-area-inset-top)", background: "rgba(246,241,232,.78)", backdropFilter: "saturate(1.4) blur(14px)", WebkitBackdropFilter: "saturate(1.4) blur(14px)", borderBottom: `1px solid ${C.line}aa` }}>
+        <div style={{ maxWidth: 560, margin: "0 auto", padding: "13px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <button className="lp-btn" aria-label="Til ranglisten" onClick={() => { setViewPlayerId(null); setTab("rangliste"); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}><Logo center={center} /></button>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {isAdmin && <Tag tone="mokka"><Shield size={11} style={{ verticalAlign: "-1.5px", marginRight: 4 }} />Admin</Tag>}
-            <div onClick={() => { setViewPlayerId(null); setTab("profil"); }} style={{ cursor: "pointer" }}><Avatar name={me.name} size={36} ring /></div>
+            {isAdmin && <Tag tone="mokka"><Shield size={11} />Admin</Tag>}
+            <button className="lp-btn" aria-label="Min profil" onClick={() => { setViewPlayerId(null); setTab("profil"); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", borderRadius: 999 }}><Avatar name={me.name} size={36} ring ringColor={C.court} /></button>
           </div>
         </div>
       </header>
 
       {toast && (
-        <div style={{ position: "fixed", top: "calc(74px + env(safe-area-inset-top))", left: "50%", transform: "translateX(-50%)", zIndex: 50, background: C.espresso, color: C.cream, fontFamily: sans, fontSize: 13.5, fontWeight: 500, padding: "11px 20px", borderRadius: 999, boxShadow: shadow, maxWidth: "88%", textAlign: "center" }}>{toast}</div>
+        <div role="status" style={{ position: "fixed", top: "calc(74px + env(safe-area-inset-top))", left: "50%", transform: "translateX(-50%)", zIndex: 50, background: "rgba(46,37,25,.94)", backdropFilter: "blur(8px)", color: C.cream, fontFamily: sans, fontSize: 13.5, fontWeight: 500, padding: "11px 18px 11px 14px", borderRadius: 999, boxShadow: shadow, maxWidth: "88%", display: "flex", alignItems: "center", gap: 10, animation: "lp-toast .32s cubic-bezier(.2,.8,.3,1.1) both" }}>
+          <BallDot size={10} /><span style={{ textAlign: "left" }}>{toast}</span>
+        </div>
       )}
 
-      <main style={{ maxWidth: 560, margin: "0 auto", padding: "0 20px 120px" }}>
-        <div className="view" key={tab + (viewPlayerId || "") + (activeThread || "") + (matchday ? matchday.stage : "")}>
+      <main style={{ maxWidth: 560, margin: "0 auto", padding: "0 20px calc(120px + env(safe-area-inset-bottom))", position: "relative", zIndex: 1 }}>
+        <div className="view" key={tab + (viewPlayerId || "") + (activeThread || "") + (eventDetailId || "") + (matchday ? matchday.stage : "")}>
           {tab === "rangliste" && renderRanking()}
           {tab === "kampe" && renderEvents()}
           {tab === "kampdag" && renderMatchday()}
@@ -1520,25 +1657,29 @@ export default function App() {
           {tab === "profil" && renderProfile()}
           {tab === "admin" && renderAdmin()}
         </div>
-        {tab !== "admin" && (
-          <div style={{ textAlign: "center", padding: "34px 0 0" }}>
-            <button onClick={() => setTab("admin")} style={{ background: "none", border: "none", fontFamily: sans, fontSize: 11.5, letterSpacing: ".08em", color: C.muted, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}>Centeradministration</button>
-            <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: ".14em", color: C.muted, textTransform: "uppercase", marginTop: 12, opacity: .7 }}>Powered by {PLATFORM}</div>
+        {tab !== "admin" && !(tab === "beskeder" && activeThread) && (
+          <div style={{ textAlign: "center", padding: "38px 0 0" }}>
+            <button onClick={() => setTab("admin")} style={{ background: "none", border: "none", fontFamily: sans, fontSize: 11.5, letterSpacing: ".08em", color: C.muted, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3, padding: 8 }}>Centeradministration</button>
+            <div style={{ fontFamily: sans, fontSize: 10.5, letterSpacing: ".14em", color: C.muted, textTransform: "uppercase", marginTop: 8, opacity: .7 }}>Powered by {PLATFORM}</div>
           </div>
         )}
       </main>
 
-      {tab !== "admin" && <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 30, background: C.cream + "f2", backdropFilter: "blur(12px)", borderTop: `1px solid ${C.line}` }}>
+      {tab !== "admin" && <nav aria-label="Hovedmenu" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 30, background: "rgba(255,253,248,.86)", backdropFilter: "saturate(1.4) blur(16px)", WebkitBackdropFilter: "saturate(1.4) blur(16px)", borderTop: `1px solid ${C.line}aa` }}>
         <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", padding: "8px 8px calc(10px + env(safe-area-inset-bottom))" }}>
           {navItems.map(item => {
             const active = tab === item.id;
             const Icon = item.icon;
+            const live = item.id === "kampdag";
+            const badge = item.id === "beskeder" ? unreadTotal : 0;
             return (
-              <button key={item.id} onClick={() => { setTab(item.id); if (item.id === "profil") setViewPlayerId(null); if (item.id === "beskeder") setActiveThread(null); }} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "7px 2px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 40, height: 28, borderRadius: 999, background: active ? C.beige : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "background .2s" }}>
-                  <Icon size={19} color={active ? C.mokkaDeep : C.muted} strokeWidth={active ? 2.4 : 2} />
+              <button key={item.id} className="lp-btn" aria-current={active ? "page" : undefined} onClick={() => { setTab(item.id); if (item.id === "profil") setViewPlayerId(null); if (item.id === "beskeder") setActiveThread(null); if (item.id === "kampe") setEventDetailId(null); }} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "6px 2px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <div style={{ position: "relative", width: 52, height: 30, borderRadius: 999, background: active ? (live ? G.court : G.primary) : "transparent", boxShadow: active ? "0 6px 14px rgba(94,70,50,.22)" : "none", display: "flex", alignItems: "center", justifyContent: "center", transition: "background .25s, box-shadow .25s" }}>
+                  <Icon size={19} color={active ? C.cream : live ? C.court : C.muted} strokeWidth={active ? 2.3 : 2} />
+                  {live && !active && <BallDot size={8} live style={{ position: "absolute", top: 2, right: 9 }} />}
+                  {badge > 0 && <span className="lp-pop" style={{ position: "absolute", top: -3, right: 4, minWidth: 17, height: 17, padding: "0 5px", borderRadius: 999, background: C.ball, color: "#2F340C", border: `1.5px solid ${C.cream}`, fontFamily: sans, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{badge}</span>}
                 </div>
-                <span style={{ fontFamily: sans, fontSize: 10, fontWeight: active ? 700 : 500, letterSpacing: ".03em", color: active ? C.mokkaDeep : C.muted }}>{item.label}</span>
+                <span style={{ fontFamily: sans, fontSize: 10.5, fontWeight: active ? 700 : 500, letterSpacing: ".03em", color: active ? C.espresso : C.muted }}>{item.label}</span>
               </button>
             );
           })}
