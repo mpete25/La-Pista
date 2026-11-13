@@ -73,6 +73,10 @@ Vault-hemmelighederne er sat.
 - [ ] Med `SMS_DRY_RUN=true`: tjek Admin → SMS-log, at beskederne ser rigtige ud.
 - [ ] Send én rigtig SMS til dit eget nummer (sæt `SMS_DRY_RUN=false`).
 - [ ] Sæt et forbrugsloft hos SMS-udbyderen.
+- [ ] **Ret linket i SMS'en.** Tilbuddet om en ledig plads linker til
+      `https://lapista.dk/e/<id>`. Den adresse har intet center og ingen side
+      for `/e/`, så linket lander på "Ingen padelcenter angivet". Linket skal
+      pege på centerets egen adresse og åbne den rigtige kampdag.
 
 ## 4. Hosting (Vercel) og domæne
 

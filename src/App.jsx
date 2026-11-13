@@ -776,6 +776,11 @@ export default function App() {
     }
   });
 
+  const signOut = async () => {
+    if (demo) { notify("Demo: du ville nu blive logget ud"); return; }
+    try { await supabase.auth.signOut(); } catch (e) { console.error(e); notify("Kunne ikke logge ud – prøv igen"); }
+  };
+
   const renderAccount = () => {
     if (!account) return <Card style={{ marginTop: 12 }}><div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted }}>Henter dine indstillinger…</div></Card>;
     const phoneChanged = phoneDraft.trim() !== (account.phone || "");
@@ -813,6 +818,13 @@ export default function App() {
             </div>
             <a href={PRIVACY_URL} target="_blank" rel="noreferrer" style={{ fontFamily: sans, fontWeight: 600, fontSize: 13, color: C.mokkaDeep, textDecoration: "none", padding: "8px 16px", borderRadius: 999, background: C.beige }}>Læs</a>
           </div>
+          <div style={row}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.espresso }}>Log ud</div>
+              <div style={{ fontFamily: sans, fontSize: 12.5, color: C.muted, marginTop: 2 }}>Fx hvis du har lånt en andens telefon.</div>
+            </div>
+            <Btn small kind="ghost" onClick={signOut}>Log ud</Btn>
+          </div>
           <div style={{ ...row, paddingBottom: 0, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 180 }}>
               <div style={{ fontFamily: sans, fontWeight: 600, fontSize: 14, color: C.clay }}>Slet min konto</div>
@@ -849,7 +861,7 @@ export default function App() {
             <div style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, marginTop: 4 }}>Medlem siden {new Date(p.joined).toLocaleDateString("da-DK", { month: "long", year: "numeric" })}</div>
           </div>
           {!own && <Btn small kind="soft" onClick={() => { openThread(p.id); setTab("beskeder"); }}><MessageCircle size={15} /> Besked</Btn>}
-          {own && !demo && <Btn small kind="ghost" onClick={() => supabase.auth.signOut()}>Log ud</Btn>}
+          {own && <Btn small kind="ghost" onClick={signOut}>Log ud</Btn>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
           {[["# " + rankOf(p.id), "Placering"], [p.points, "Point"], [winrate + "%", "Sejrsrate"]].map(([v, l]) => (
