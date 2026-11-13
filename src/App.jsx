@@ -1304,7 +1304,7 @@ export default function App() {
         @media (prefers-reduced-motion: reduce) { .view { animation: none; } }
       `}</style>
 
-      <header style={{ position: "sticky", top: 0, zIndex: 20, background: C.sand + "e6", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.line}` }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 20, paddingTop: "env(safe-area-inset-top)", background: C.sand + "e6", backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.line}` }}>
         <div style={{ maxWidth: 560, margin: "0 auto", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Logo center={center} />
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1315,7 +1315,7 @@ export default function App() {
       </header>
 
       {toast && (
-        <div style={{ position: "fixed", top: 74, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: C.espresso, color: C.cream, fontFamily: sans, fontSize: 13.5, fontWeight: 500, padding: "11px 20px", borderRadius: 999, boxShadow: shadow, maxWidth: "88%", textAlign: "center" }}>{toast}</div>
+        <div style={{ position: "fixed", top: "calc(74px + env(safe-area-inset-top))", left: "50%", transform: "translateX(-50%)", zIndex: 50, background: C.espresso, color: C.cream, fontFamily: sans, fontSize: 13.5, fontWeight: 500, padding: "11px 20px", borderRadius: 999, boxShadow: shadow, maxWidth: "88%", textAlign: "center" }}>{toast}</div>
       )}
 
       <main style={{ maxWidth: 560, margin: "0 auto", padding: "0 20px 120px" }}>

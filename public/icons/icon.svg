@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- App icon: the header logo (sun over the court line) on the sand background.
+       Kept inside the central 80% so it also works as a maskable icon. -->
+  <defs>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B08D57"/>
+      <stop offset="1" stop-color="#7A5C43"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="#F6F1E8"/>
+  <g transform="translate(256 256) scale(10) translate(-15 -16.5)">
+    <path d="M4 19 a11 11 0 0 1 22 0" fill="url(#sun)"/>
+    <line x1="2" y1="19" x2="28" y2="19" stroke="#2E2519" stroke-width="2" stroke-linecap="round"/>
+    <line x1="7" y1="24" x2="23" y2="24" stroke="#7A5C43" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+  </g>
+</svg>

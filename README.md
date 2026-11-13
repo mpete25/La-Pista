@@ -109,6 +109,23 @@ stack — `supabase/tests/00_shim.sql` supplies the API roles, `auth.users` and
 roles. The suite covers the domain rules, tenant isolation, the waitlist offer flow,
 messages and the public center lookup. CI runs all of it on every push.
 
+## Installable web app (PWA)
+
+The app can be added to a phone's home screen and opens full screen like a
+native app. On iPhone: open the deployed URL in **Safari → Share → Add to
+Home Screen**.
+
+- `public/manifest.webmanifest` — name, colours, start URL.
+- `public/icons/` — `icon.svg` is the source; the PNGs (180/192/512) are
+  rendered from it. Re-render them if the icon changes.
+- `public/sw.js` — service worker, registered in production builds only.
+  It never caches Supabase or other cross-origin traffic, so rankings are
+  always live. Page loads are network-first with `offline.html` as the
+  fallback; Vite's hashed `/assets/*` are cached. Bump `VERSION` in `sw.js`
+  when its caching strategy changes.
+- The header pads for `env(safe-area-inset-top)` so content clears the notch
+  when launched from the home screen.
+
 ## Environment variables
 
 See [`.env.example`](.env.example) for the full list. Never commit real secrets —
