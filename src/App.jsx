@@ -22,6 +22,9 @@ import {
 
 /* Demo mode: no Supabase configured -> the app runs on the in-memory seed data. */
 const IS_DEMO = !supabase;
+/* A production build without Supabase settings would otherwise quietly show
+   the made-up demo data as if it were the real app. It has to be asked for. */
+const MISCONFIGURED = IS_DEMO && import.meta.env.PROD && import.meta.env.VITE_DEMO_MODE !== "true";
 
 const adminInput = { fontFamily: "'Outfit', ui-sans-serif, system-ui, sans-serif", fontSize: 16, padding: "11px 14px", borderRadius: 12, border: "1px solid #E9DECB", background: "#F6F1E8", outline: "none" };
 
@@ -99,6 +102,23 @@ const seedThreads = () => ({
 
 /* ================= APP ================= */
 export default function App() {
+  if (MISCONFIGURED) return <Misconfigured />;
+  return <LaPista />;
+}
+
+function Misconfigured() {
+  return (
+    <div style={{ minHeight: "100dvh", background: G.page, display: "flex", alignItems: "center", justifyContent: "center", padding: 28, fontFamily: sans, color: C.espresso, textAlign: "center" }}>
+      <style>{globalCss}</style>
+      <div style={{ maxWidth: 340 }}>
+        <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 24, marginBottom: 8 }}>Appen er ikke sat op endnu</div>
+        <p style={{ color: C.muted, fontSize: 14.5, lineHeight: 1.55, margin: 0 }}>Forbindelsen til databasen mangler. Sæt <b>VITE_SUPABASE_URL</b> og <b>VITE_SUPABASE_ANON_KEY</b> i hosting-værktøjets miljøvariabler, og byg appen igen.</p>
+      </div>
+    </div>
+  );
+}
+
+function LaPista() {
   const demo = IS_DEMO;
   const { session, loading: authLoading, needsPassword, passwordSet } = useAuth();
   const [players, setPlayers] = useState(demo ? seedPlayers : []);
@@ -268,6 +288,21 @@ export default function App() {
 
   const notify = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
 
+  /* The link in an SMS (?event=<id>) opens that match day once the events
+     are loaded. The parameter is then dropped so a reload starts normally. */
+  const deepLinkDone = useRef(false);
+  useEffect(() => {
+    if (deepLinkDone.current || events.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("event");
+    if (!id) { deepLinkDone.current = true; return; }
+    deepLinkDone.current = true;
+    if (events.some(e => e.id === id && e.status !== "afsluttet")) { setTab("kampe"); setEventDetailId(id); }
+    params.delete("event");
+    const q = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (q ? "?" + q : "") + window.location.hash);
+  }, [events]);
+
   /* An open conversation stays scrolled to the newest message. */
   const threadEndRef = useRef(null);
   const openThreadLen = activeThread ? (threads[activeThread] || []).length : 0;
@@ -316,7 +351,14 @@ export default function App() {
       const status = await joinEventApi(evId);
       notify(status === "registered" ? "Du er tilmeldt" : "Begivenheden er fuld – du står nu på ventelisten");
       await reloadEvents();
-    } catch (e) { console.error(e); notify("Tilmelding fejlede – prøv igen"); }
+    } catch (e) {
+      console.error(e);
+      const m = String(e?.message || "");
+      notify(m.includes("not open") ? "Tilmeldingen er lukket for denne kampdag"
+        : m.includes("Already registered") ? "Du er allerede tilmeldt"
+        : "Tilmelding fejlede – prøv igen");
+      reloadEvents().catch(() => {});
+    }
   };
   const leaveEvent = async (evId) => {
     const evObj = events.find(e => e.id === evId);
@@ -525,7 +567,11 @@ export default function App() {
             winners: s.games_a > s.games_b ? s.team_a : s.team_b,
           }));
           setMatchday({ ...md, results, round: results.length, winners: null, wScore: null, lScore: null, stage: "bane" });
-          notify(results.length > md.results.length ? "Sættet var allerede indberettet af en medspiller" : "Kunne ikke gemme sættet – prøv igen");
+          const m = String(e?.message || "");
+          notify(results.length > md.results.length ? "Sættet var allerede indberettet af en medspiller"
+            : m.includes("TOO_MANY_SETS") ? "Der er indberettet flere sæt, end I kan have nået – vent et par minutter"
+            : m.includes("ALREADY_FINISHED") || m.includes("NOT_IN_PROGRESS") ? "Banen er allerede afsluttet"
+            : "Kunne ikke gemme sættet – prøv igen");
         } catch { notify("Kunne ikke gemme sættet – prøv igen"); }
         return;
       }
@@ -745,8 +791,8 @@ export default function App() {
     try { await fn(); } finally { setAccountBusy(false); }
   };
   const savePhone = () => accountAction(async () => {
-    const phone = phoneDraft.trim();
-    if (phone && !/^\+?[\d\s-]{8,16}$/.test(phone)) { notify("Det ligner ikke et telefonnummer"); return; }
+    const phone = phoneDraft.replace(/[-().]/g, " ").replace(/\s+/g, " ").trim();
+    if (phone && !/^\+?[0-9][0-9 ]{6,18}$/.test(phone)) { notify("Det ligner ikke et telefonnummer"); return; }
     try {
       if (!demo) await updateMyPhoneApi(ME, phone);
       setAccount(a => ({ ...a, phone }));
@@ -759,7 +805,7 @@ export default function App() {
       if (!demo) await setSmsConsentApi(on);
       setAccount(a => ({ ...a, smsConsent: on }));
       notify(on ? "Du får SMS ved ledige pladser og aflysninger" : "Du får ikke længere SMS fra os");
-    } catch (e) { console.error(e); notify("Kunne ikke gemme dit valg – prøv igen"); }
+    } catch (e) { console.error(e); notify(String(e?.message || "").includes("PHONE_REQUIRED") ? "Tilføj et mobilnummer først" : "Kunne ikke gemme dit valg – prøv igen"); }
   });
   const downloadMyData = () => accountAction(async () => {
     try {
@@ -985,7 +1031,7 @@ export default function App() {
           setThreads(t => ({ ...t, [activeThread]: [...(t[activeThread] || []), msg] }));
         } catch (e) {
           console.error(e);
-          notify("Beskeden blev ikke sendt");
+          notify(String(e?.message || "").includes("RATE_LIMITED") ? "Du sender for hurtigt – vent et øjeblik" : "Beskeden blev ikke sendt");
           setMsgDraft(text);
         }
       };

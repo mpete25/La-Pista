@@ -22,6 +22,9 @@ const linkBtn = {
   fontFamily: sans, fontSize: 13, fontWeight: 600, color: C.mokka,
 };
 
+/* Same shape the database accepts: digits and spaces, optional leading +. */
+const cleanPhone = (raw) => raw.replace(/[-().]/g, " ").replace(/\s+/g, " ").trim();
+
 const mapError = (e) => {
   const msg = e?.message || "";
   if (msg.includes("Invalid login credentials")) return "Forkert e-mail eller adgangskode.";
@@ -97,6 +100,8 @@ export default function AuthScreen({ center }) {
     if (mode === "signup") {
       if (!form.fullName.trim()) { setError("Skriv dit fulde navn."); return; }
       if (!privacyOk) { setError("Du skal acceptere privatlivspolitikken for at oprette en profil."); return; }
+      if (form.password.length < 8) { setError("Vælg en adgangskode på mindst 8 tegn."); return; }
+      if (form.phone.trim() && !/^\+?[0-9][0-9 ]{6,18}$/.test(cleanPhone(form.phone))) { setError("Mobilnummeret ser ikke rigtigt ud."); return; }
       if (smsOk && !form.phone.trim()) { setError("Skriv dit mobilnummer, hvis du vil have SMS."); return; }
     }
     setBusy(true);
@@ -110,7 +115,7 @@ export default function AuthScreen({ center }) {
             data: {
               center_slug: center.slug,
               full_name: form.fullName.trim(),
-              phone: form.phone.trim(),
+              phone: cleanPhone(form.phone),
               sms_consent: smsOk,
               privacy_accepted: privacyOk,
             },
@@ -219,7 +224,7 @@ export function SetPasswordScreen({ center, onDone }) {
   const submit = async () => {
     if (busy) return;
     setError(null);
-    if (pw.length < 6) { setError("Adgangskoden skal være mindst 6 tegn."); return; }
+    if (pw.length < 8) { setError("Adgangskoden skal være mindst 8 tegn."); return; }
     if (pw !== pw2) { setError("De to adgangskoder er ikke ens."); return; }
     setBusy(true);
     try {

@@ -56,6 +56,14 @@ if (existing) {
   console.log(`✓ Created center "${args.name}" (${slug}).`);
 }
 
+// The address players reach this center on. Stored so SMS can link back to
+// the right match day; without it the SMS simply carries no link.
+if (args["app-url"]) {
+  const { error } = await supabase.from("centers").update({ app_url: args["app-url"] }).eq("slug", slug);
+  if (error) fail(`Could not store the app address: ${error.message}`);
+  console.log(`✓ App address set to ${args["app-url"]}.`);
+}
+
 // 2. Its admin: invite by e-mail (or reuse an existing login), then promote.
 const email = args["admin-email"]?.trim();
 if (email) {
