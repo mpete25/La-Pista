@@ -16,7 +16,9 @@ as $$
 $$;
 
 -- Creates an auth user, which fires the profile trigger, then applies the
--- optional point/role overrides that only the server may set.
+-- optional point/role overrides that only the server may set. Like a real
+-- signup with both boxes ticked, the player opts in to SMS and accepts the
+-- privacy policy.
 create or replace function test.make_player(
   p_center_slug text,
   p_name text,
@@ -34,7 +36,8 @@ begin
   values (
     uid,
     replace(lower(p_name), ' ', '.') || '.' || left(uid::text, 8) || '@test.dk',
-    jsonb_build_object('center_slug', p_center_slug, 'full_name', p_name, 'phone', p_phone)
+    jsonb_build_object('center_slug', p_center_slug, 'full_name', p_name, 'phone', p_phone,
+                       'sms_consent', true, 'privacy_accepted', true)
   );
 
   update public.profiles
