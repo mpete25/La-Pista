@@ -8,16 +8,20 @@ export const C = {
   mokkaDeep: "#5E4632",
   espresso: "#2E2519",    // text
   muted: "#85755E",       // secondary text (4.5:1 on cream)
-  olive: "#6F8052",       // positive
+  olive: "#6A7B4E",       // positive
   clay: "#B4694E",        // negative (sparingt)
   gold: "#B08D57",
-  // Padel accents: the faded petrol of a court surface and the ball's
-  // optic yellow. Used sparingly, as highlights against the warm base.
-  court: "#3F7C85",
-  courtDeep: "#2C5961",
-  courtSoft: "#DCE9E8",
-  ball: "#D8E36B",
-  ballDeep: "#AEBB3F",
+  // One accent family, chosen to sit next to the warm base on the colour
+  // wheel rather than across from it: clay (16°) – gold (38°) – honey (48°)
+  // – sage (85°). Everything shares the same muted saturation, so any two
+  // of them can fade into each other without turning muddy.
+  //   court = the sage green of a padel court: "play", "live", "you".
+  //   ball  = honey: the highlight on dark surfaces.
+  court: "#6A7B4E",
+  courtDeep: "#48563A",
+  courtSoft: "#E8ECDD",
+  ball: "#E6D488",
+  ballDeep: "#BFA85A",
 };
 export const shadow = "0 1px 2px rgba(46,37,25,.05), 0 10px 30px rgba(46,37,25,.07)";
 export const softShadow = "0 1px 2px rgba(46,37,25,.04), 0 4px 14px rgba(46,37,25,.05)";
@@ -27,31 +31,32 @@ export const sans = "'Outfit', ui-sans-serif, system-ui, sans-serif";
 
 /* Faded gradients ("fades"). One place, so every surface agrees. */
 export const G = {
-  // Ambient page wash: a hint of court petrol top right, warm gold top left.
-  page: `radial-gradient(900px 460px at 100% -120px, rgba(63,124,133,.13), transparent 70%),
-         radial-gradient(760px 420px at -10% -60px, rgba(176,141,87,.18), transparent 70%),
+  // Ambient page wash: warm gold top left, a breath of sage top right.
+  page: `radial-gradient(900px 460px at 100% -120px, rgba(106,123,78,.10), transparent 70%),
+         radial-gradient(760px 420px at -10% -60px, rgba(176,141,87,.16), transparent 70%),
          ${C.sand}`,
-  // Hero cards: espresso-mokka fading into court petrol.
-  hero: `radial-gradient(130% 150% at 100% 0%, rgba(63,124,133,.85), rgba(63,124,133,0) 58%),
-         radial-gradient(90% 120% at 0% 100%, rgba(176,141,87,.35), rgba(176,141,87,0) 60%),
-         linear-gradient(140deg, #6B4F39, #33271B)`,
+  // Hero cards stay inside the warm family: mokka fading to espresso, lit
+  // by a soft gold glow.
+  hero: `radial-gradient(120% 140% at 100% 0%, rgba(201,168,110,.50), rgba(201,168,110,0) 55%),
+         linear-gradient(145deg, #7A5C43, #4E3A29 55%, #33271B)`,
   primary: `linear-gradient(135deg, #8A6A4E, ${C.mokkaDeep})`,
-  court: `linear-gradient(160deg, #4E8C94, ${C.courtDeep})`,
-  ball: `radial-gradient(circle at 35% 30%, #EEF5A0, ${C.ball} 55%, ${C.ballDeep})`,
+  court: `linear-gradient(150deg, #6F8153, ${C.courtDeep})`,
+  ball: `radial-gradient(circle at 35% 30%, #F5EBBE, ${C.ball} 55%, ${C.ballDeep})`,
   warm: `linear-gradient(160deg, ${C.cream}, #F6ECDB)`,
-  cool: `linear-gradient(160deg, ${C.cream}, #E9F0EC)`,
-  bar: `linear-gradient(90deg, ${C.gold}, ${C.court})`,
+  cool: `linear-gradient(160deg, ${C.cream}, #EEF1E4)`,
+  bar: `linear-gradient(90deg, #CDB57E, ${C.court})`,
+  barOnDark: `linear-gradient(90deg, ${C.gold}, ${C.ball})`,
+  barFull: `linear-gradient(90deg, #CDB57E, ${C.clay})`,
 };
 
 /* Soft avatar tints so a list of players reads as people, not a column of
    identical beige dots. Picked per name, so a player keeps their colour. */
 const AVATAR_TINTS = [
   ["#F1E8D8", "#E2D3B9", "#5E4632"], // sand
-  ["#E5ECDC", "#CBD9BC", "#4D5C38"], // sage
-  ["#DDEAEA", "#BDD6D8", "#2C5961"], // court
-  ["#F4E1D7", "#E6C6B6", "#8A4A33"], // clay
-  ["#F4EAD0", "#E4D2A4", "#735A2B"], // gold
-  ["#E9E3EC", "#D3C8DA", "#5A4A66"], // dusk
+  ["#E9EDDD", "#D3DCC1", "#48563A"], // sage
+  ["#F4E3D8", "#E8CBBB", "#8A4A33"], // clay
+  ["#F4EAD0", "#E6D5A8", "#735A2B"], // honey
+  ["#ECE6DD", "#D9CFC1", "#5A4C3E"], // stone
 ];
 export const avatarTint = (name = "") => {
   let h = 0;
@@ -85,7 +90,7 @@ export const globalCss = `
   @keyframes lp-toast { from { opacity: 0; transform: translate(-50%, -14px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
   @keyframes lp-bounce { 0%, 100% { transform: translateY(0) scaleY(.92); animation-timing-function: cubic-bezier(.3,.6,.6,1); } 50% { transform: translateY(-14px) scaleY(1); animation-timing-function: cubic-bezier(.4,0,.8,.5); } }
   @keyframes lp-shadow { 0%, 100% { transform: scaleX(1); opacity: .28; } 50% { transform: scaleX(.6); opacity: .12; } }
-  @keyframes lp-pulse { 0% { box-shadow: 0 0 0 0 rgba(216,227,107,.75); } 70%, 100% { box-shadow: 0 0 0 9px rgba(216,227,107,0); } }
+  @keyframes lp-pulse { 0% { box-shadow: 0 0 0 0 rgba(230,212,136,.8); } 70%, 100% { box-shadow: 0 0 0 9px rgba(230,212,136,0); } }
   @keyframes lp-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   @keyframes lp-growy { from { transform: scaleY(0); } to { transform: scaleY(1); } }
   @keyframes lp-drift { 0% { transform: translate(0,0); } 50% { transform: translate(-14px, 10px); } 100% { transform: translate(0,0); } }

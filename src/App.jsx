@@ -664,7 +664,7 @@ export default function App() {
         {/* Your position */}
         <div className="lp-press" role="button" tabIndex={0} onClick={() => openPlayer(ME)} onKeyDown={e => e.key === "Enter" && openPlayer(ME)} style={{ position: "relative", overflow: "hidden", borderRadius: 26, padding: "20px 22px 18px", background: G.hero, color: C.cream, boxShadow: "0 18px 40px rgba(46,37,25,.28)", cursor: "pointer" }}>
           <CourtLines />
-          <div aria-hidden style={{ position: "absolute", right: -30, top: -40, width: 170, height: 170, borderRadius: 999, background: "radial-gradient(circle, rgba(216,227,107,.30), rgba(216,227,107,0) 65%)", animation: "lp-drift 9s ease-in-out infinite" }} />
+          <div aria-hidden style={{ position: "absolute", right: -30, top: -40, width: 170, height: 170, borderRadius: 999, background: "radial-gradient(circle, rgba(230,212,136,.26), rgba(230,212,136,0) 65%)", animation: "lp-drift 9s ease-in-out infinite" }} />
           <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
             <div>
               <div style={{ fontFamily: sans, fontSize: 11, fontWeight: 600, letterSpacing: ".18em", textTransform: "uppercase", opacity: .8 }}>Din placering</div>
@@ -682,7 +682,7 @@ export default function App() {
             </div>
           </div>
           <div style={{ position: "relative", marginTop: 16 }}>
-            <Bar value={progress} height={7} fill={`linear-gradient(90deg, ${C.gold}, ${C.ball})`} track="rgba(255,253,248,.18)" />
+            <Bar value={progress} height={7} fill={G.barOnDark} track="rgba(255,253,248,.18)" />
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 8, fontFamily: sans, fontSize: 12.5, opacity: .9 }}>
               <span>{above ? <><b>{gap === 0 ? "Lige" : gap + " point"}</b> {gap === 0 ? "med" : "op til"} {firstName(above.name)} (#{myRank - 1})</> : <b>Du fører ranglisten</b>}</span>
               <span style={{ opacity: .75, whiteSpace: "nowrap" }}>{me.wins} S · {me.losses} N</span>
@@ -888,7 +888,7 @@ export default function App() {
           </div>
           <div style={{ position: "relative", marginTop: 14 }}>
             <div style={{ display: "flex", height: 7, borderRadius: 999, overflow: "hidden", background: "rgba(255,253,248,.18)" }}>
-              <div className="lp-grow" style={{ width: `${winrate}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.ball})`, borderRadius: 999 }} />
+              <div className="lp-grow" style={{ width: `${winrate}%`, background: G.barOnDark, borderRadius: 999 }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontFamily: sans, fontSize: 12, opacity: .85, marginTop: 7 }}><span><b>{p.wins}</b> sejre</span><span><b>{p.losses}</b> nederlag</span></div>
           </div>
@@ -1015,7 +1015,7 @@ export default function App() {
           </div>
           <div style={{ display: "flex", gap: 8, padding: "10px 0 12px" }}>
             <input value={msgDraft} onChange={e => setMsgDraft(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Skriv en besked …" aria-label="Besked" enterKeyHint="send" style={{ flex: 1, minWidth: 0, fontFamily: sans, fontSize: 16, padding: "12px 18px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.cream, color: C.espresso, outline: "none" }} />
-            <button className="lp-btn" aria-label="Send" onClick={send} disabled={!msgDraft.trim()} style={{ width: 48, height: 48, borderRadius: 999, background: G.court, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px rgba(44,89,97,.3)", opacity: msgDraft.trim() ? 1 : .45, flexShrink: 0 }}><Send size={18} color={C.cream} /></button>
+            <button className="lp-btn" aria-label="Send" onClick={send} disabled={!msgDraft.trim()} style={{ width: 48, height: 48, borderRadius: 999, background: G.primary, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 18px rgba(94,70,50,.3)", opacity: msgDraft.trim() ? 1 : .45, flexShrink: 0 }}><Send size={18} color={C.cream} /></button>
           </div>
         </div>
       );
@@ -1037,7 +1037,7 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
                   <div style={{ fontFamily: sans, fontSize: 11.5, color: C.muted }}>{last.time}</div>
-                  {unread > 0 && <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: C.ball, color: "#2F340C", fontFamily: sans, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{unread}</span>}
+                  {unread > 0 && <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999, background: C.ball, color: "#4A3D12", fontFamily: sans, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{unread}</span>}
                 </div>
               </Card>
             );
@@ -1066,7 +1066,7 @@ export default function App() {
     const mo = d.toLocaleDateString("da-DK", { month: "short" }).replace(".", "");
     const on = today || light;
     return (
-      <div style={{ width: 58, flexShrink: 0, borderRadius: 16, padding: "8px 0 9px", textAlign: "center", background: light ? "rgba(255,253,248,.16)" : today ? G.court : G.warm, border: on ? "1px solid rgba(255,255,255,.22)" : `1px solid ${C.line}`, color: on ? C.cream : C.espresso, boxShadow: today && !light ? "0 8px 18px rgba(44,89,97,.25)" : "none" }}>
+      <div style={{ width: 58, flexShrink: 0, borderRadius: 16, padding: "8px 0 9px", textAlign: "center", background: light ? "rgba(255,253,248,.16)" : today ? G.court : G.warm, border: on ? "1px solid rgba(255,255,255,.22)" : `1px solid ${C.line}`, color: on ? C.cream : C.espresso, boxShadow: today && !light ? "0 8px 18px rgba(72,86,58,.25)" : "none" }}>
         <div style={{ fontFamily: sans, fontSize: 10, fontWeight: 600, letterSpacing: ".14em", textTransform: "uppercase", opacity: on ? .85 : 1, color: on ? C.cream : C.muted }}>{wd}</div>
         <div style={{ fontFamily: serif, fontWeight: 700, fontSize: 24, lineHeight: 1.05 }}>{d.getDate()}</div>
         <div style={{ fontFamily: sans, fontSize: 10.5, fontWeight: 500, letterSpacing: ".06em", opacity: on ? .85 : 1, color: on ? C.cream : C.muted }}>{mo}</div>
@@ -1106,7 +1106,7 @@ export default function App() {
             {ev.courtNames?.length > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Swords size={14} />{ev.courtNames.join(" · ")}</span>}
           </div>
           <div style={{ position: "relative", marginTop: 14 }}>
-            <Bar value={ev.registered.length / ev.capacity} height={7} fill={`linear-gradient(90deg, ${C.gold}, ${C.ball})`} track="rgba(255,253,248,.18)" />
+            <Bar value={ev.registered.length / ev.capacity} height={7} fill={G.barOnDark} track="rgba(255,253,248,.18)" />
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 7, fontFamily: sans, fontSize: 12.5 }}>
               <span><b>{ev.registered.length}</b> af {ev.capacity} pladser</span>
               <span style={{ opacity: .8 }}>{spotsLabel(ev)}{ev.waitlist.length > 0 ? ` · ${ev.waitlist.length} på venteliste` : ""}</span>
@@ -1207,7 +1207,7 @@ export default function App() {
           const today = ev.date === TODAY;
           const fill = ev.registered.length / ev.capacity;
           return (
-            <Card key={ev.id} pad={16} style={today ? { border: `1.5px solid ${C.court}`, background: G.cool, boxShadow: "0 14px 34px rgba(44,89,97,.16)" } : {}}>
+            <Card key={ev.id} pad={16} style={today ? { border: `1.5px solid ${C.court}`, background: G.cool, boxShadow: "0 14px 34px rgba(72,86,58,.16)" } : {}}>
               <div role="button" tabIndex={0} onClick={() => setEventDetailId(ev.id)} onKeyDown={e => e.key === "Enter" && setEventDetailId(ev.id)} style={{ display: "flex", gap: 14, alignItems: "center", cursor: "pointer" }}>
                 <DateTile iso={ev.date} today={today} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1224,7 +1224,7 @@ export default function App() {
               </div>
 
               <div style={{ marginTop: 14 }}>
-                <Bar value={fill} fill={full ? `linear-gradient(90deg, ${C.gold}, ${C.clay})` : G.bar} />
+                <Bar value={fill} fill={full ? G.barFull : G.bar} />
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
                     {ev.registered.slice(0, 5).map((pid, i) => <div key={pid} style={{ marginLeft: i ? -6 : 0 }}><Avatar name={playersById[pid].name} size={28} /></div>)}
@@ -1278,7 +1278,7 @@ export default function App() {
           {md.courts.map((c, i) => {
             const mine = i === md.myCourtIdx;
             return (
-              <Card key={i} pad={16} style={mine ? { background: G.court, border: "1px solid rgba(255,255,255,.18)", color: C.cream, boxShadow: "0 16px 34px rgba(44,89,97,.28)", position: "relative", overflow: "hidden" } : {}}>
+              <Card key={i} pad={16} style={mine ? { background: G.court, border: "1px solid rgba(255,255,255,.18)", color: C.cream, boxShadow: "0 16px 34px rgba(72,86,58,.28)", position: "relative", overflow: "hidden" } : {}}>
                 {mine && <CourtLines opacity={0.12} />}
                 <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 18, color: mine ? C.cream : C.espresso, display: "flex", alignItems: "center", gap: 8 }}>{courtLabel(i)}{mine && <Tag tone="ball">Din bane</Tag>}</div>
@@ -1316,7 +1316,7 @@ export default function App() {
             <Tag tone="mokka">Sæt {md.round + 1}</Tag>
             <span style={{ marginLeft: "auto", fontFamily: sans, fontSize: 12.5, fontWeight: 600, color: minsLeft <= 10 ? C.clay : C.muted, display: "inline-flex", alignItems: "center", gap: 5 }}><Clock size={13} />{minsLeft} min tilbage</span>
           </div>
-          <Bar value={1 - minsLeft / 120} height={5} fill={minsLeft <= 10 ? `linear-gradient(90deg, ${C.gold}, ${C.clay})` : G.bar} style={{ marginTop: 10 }} />
+          <Bar value={1 - minsLeft / 120} height={5} fill={minsLeft <= 10 ? G.barFull : G.bar} style={{ marginTop: 10 }} />
           <H size={26} style={{ marginTop: 16 }}>Din opstilling</H>
           <p style={{ fontFamily: sans, fontSize: 13.5, color: C.muted, margin: "5px 0 0" }}>Holdkombination {comboNo} af 3 · makkerne roterer efter hvert sæt</p>
         </div>
@@ -1367,7 +1367,7 @@ export default function App() {
             {[["L", pr.left, "Venstre"], ["R", pr.right, "Højre"]].map(([key, team, side]) => {
               const won = md.winners === key, sc = shown(key);
               return (
-                <Card key={key} pad={14} onClick={() => setMatchday({ ...md, winners: key })} style={{ textAlign: "center", position: "relative", ...(won ? { border: `2px solid ${C.court}`, background: G.cool, boxShadow: "0 12px 26px rgba(44,89,97,.18)" } : { border: `2px solid transparent`, outline: `1px solid ${C.line}`, outlineOffset: -1 }) }}>
+                <Card key={key} pad={14} onClick={() => setMatchday({ ...md, winners: key })} style={{ textAlign: "center", position: "relative", ...(won ? { border: `2px solid ${C.court}`, background: G.cool, boxShadow: "0 12px 26px rgba(72,86,58,.18)" } : { border: `2px solid transparent`, outline: `1px solid ${C.line}`, outlineOffset: -1 }) }}>
                   <Eyebrow style={{ letterSpacing: ".14em", color: won ? C.courtDeep : C.muted }}>{side} side</Eyebrow>
                   <div style={{ display: "flex", justifyContent: "center", margin: "10px 0 8px" }}>
                     <Avatar name={playersById[team[0]].name} size={36} /><div style={{ marginLeft: -9 }}><Avatar name={playersById[team[1]].name} size={36} /></div>
@@ -1637,7 +1637,7 @@ export default function App() {
           <button className="lp-btn" aria-label="Til ranglisten" onClick={() => { setViewPlayerId(null); setTab("rangliste"); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}><Logo center={center} /></button>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {isAdmin && <Tag tone="mokka"><Shield size={11} />Admin</Tag>}
-            <button className="lp-btn" aria-label="Min profil" onClick={() => { setViewPlayerId(null); setTab("profil"); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", borderRadius: 999 }}><Avatar name={me.name} size={36} ring ringColor={C.court} /></button>
+            <button className="lp-btn" aria-label="Min profil" onClick={() => { setViewPlayerId(null); setTab("profil"); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", borderRadius: 999 }}><Avatar name={me.name} size={36} ring /></button>
           </div>
         </div>
       </header>
@@ -1677,7 +1677,7 @@ export default function App() {
                 <div style={{ position: "relative", width: 52, height: 30, borderRadius: 999, background: active ? (live ? G.court : G.primary) : "transparent", boxShadow: active ? "0 6px 14px rgba(94,70,50,.22)" : "none", display: "flex", alignItems: "center", justifyContent: "center", transition: "background .25s, box-shadow .25s" }}>
                   <Icon size={19} color={active ? C.cream : live ? C.court : C.muted} strokeWidth={active ? 2.3 : 2} />
                   {live && !active && <BallDot size={8} live style={{ position: "absolute", top: 2, right: 9 }} />}
-                  {badge > 0 && <span className="lp-pop" style={{ position: "absolute", top: -3, right: 4, minWidth: 17, height: 17, padding: "0 5px", borderRadius: 999, background: C.ball, color: "#2F340C", border: `1.5px solid ${C.cream}`, fontFamily: sans, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{badge}</span>}
+                  {badge > 0 && <span className="lp-pop" style={{ position: "absolute", top: -3, right: 4, minWidth: 17, height: 17, padding: "0 5px", borderRadius: 999, background: C.ball, color: "#4A3D12", border: `1.5px solid ${C.cream}`, fontFamily: sans, fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{badge}</span>}
                 </div>
                 <span style={{ fontFamily: sans, fontSize: 10.5, fontWeight: active ? 700 : 500, letterSpacing: ".03em", color: active ? C.espresso : C.muted }}>{item.label}</span>
               </button>
