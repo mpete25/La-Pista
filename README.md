@@ -73,7 +73,9 @@ Every center is a tenant, and the app resolves which one from the URL:
 
 1. `?center=<slug>` — handy in development
 2. the subdomain — `padel-lounge.lapista.dk` → `padel-lounge`
-3. `VITE_DEFAULT_CENTER_SLUG` — for a single-center deployment
+3. `VITE_DEFAULT_CENTER_SLUG` — for a single-center deployment, and on any
+   host that is not a subdomain of `VITE_PLATFORM_DOMAIN` (default
+   `lapista.dk`), such as `la-pista.vercel.app`
 
 The slug is looked up in the `centers` table. Anonymous visitors can read center
 branding (slug, name, city) and nothing else, which is what lets the sign-up screen
@@ -87,8 +89,10 @@ offers (so their replacements go out in the same run), then sends what is pendin
 through GatewayAPI or inMobile (`SMS_PROVIDER`).
 
 Without `SMS_GATEWAY_API_KEY` the function sends nothing and just reports what is
-queued, so it is safe to run before the gateway account exists. Schedule it every few
-minutes and authenticate with the shared `CRON_SECRET`:
+queued, so it is safe to run before the gateway account exists. A `pg_cron` job
+(`20261113140000_sms_schedule`) calls it every two minutes once the Vault holds
+`project_url` and `cron_secret` (see docs/GO-LIVE.md). To call it by hand,
+authenticate with the shared `CRON_SECRET`:
 
 ```bash
 npx supabase secrets set SMS_GATEWAY_API_KEY=... SMS_GATEWAY_SENDER="La Pista" CRON_SECRET=...
@@ -108,6 +112,50 @@ stack — `supabase/tests/00_shim.sql` supplies the API roles, `auth.users` and
 `auth.uid()`, so the policies are exercised as the real `anon` and `authenticated`
 roles. The suite covers the domain rules, tenant isolation, the waitlist offer flow,
 messages and the public center lookup. CI runs all of it on every push.
+
+## Accounts and privacy (GDPR)
+
+- **Phone numbers are private.** Column privileges on `profiles` hide `phone`
+  and the consent columns from other players; a player reads their own via
+  `my_private_profile()`, a center admin their players' via
+  `admin_player_contacts()`.
+- **SMS needs consent.** Signup has an opt-in box; players toggle it under
+  Profile (`set_sms_consent`). `queue_sms()` skips anyone who has not opted in.
+- **Self-service:** players can download their data (`export_my_data`) and
+  delete their account (`delete_my_account`, which also removes the login).
+- **Password reset** and admin **invitations** land on a "choose a password"
+  screen (`SetPasswordScreen`).
+- The privacy policy is `public/privatliv.html` — still a draft.
+
+## Live updates
+
+The app subscribes to `events`, `event_registrations`, `court_assignments`,
+`sets` and `point_adjustments` over Supabase Realtime (RLS applies per
+subscriber) and refetches when they change, so a set reported on another phone
+or points awarded at the end of a day show up without a reload.
+
+## Onboarding a new center
+
+```bash
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+  node scripts/create-center.mjs --slug aarhus-padel --name "Aarhus Padel" \
+  --city Aarhus --admin-email manager@aarhuspadel.dk
+```
+
+Creates the center and invites its first admin. The underlying
+`platform_*` functions are callable by the service role only.
+
+## Error monitoring
+
+Set `VITE_SENTRY_DSN` to turn on Sentry. Without it nothing is loaded or sent.
+No names, e-mails or phone numbers are attached to reports — only the user id.
+A render error shows a Danish "Noget gik galt" page instead of a blank screen.
+
+## Before going live
+
+See **[docs/GO-LIVE.md](docs/GO-LIVE.md)** — everything that has to be set up
+or checked in the real systems (Supabase, SMS gateway, Vercel, legal) before
+real players use the app.
 
 ## Installable web app (PWA)
 
