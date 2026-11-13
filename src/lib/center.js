@@ -10,6 +10,10 @@ import { supabase } from "./supabase.js";
  * single-center deployment.
  */
 
+// The domain whose subdomains are centers (<slug>.lapista.dk).
+const platformDomain = () =>
+  (import.meta.env?.VITE_PLATFORM_DOMAIN || "lapista.dk").toLowerCase().replace(/^\.+/, "");
+
 // Subdomains that are the platform itself, never a center.
 const RESERVED = new Set(["www", "app", "api", "admin", "staging", "preview"]);
 
@@ -21,13 +25,15 @@ export function centerSlugFromLocation(location) {
   if (fromQuery) return fromQuery.trim().toLowerCase();
 
   const host = (loc.hostname || "").toLowerCase();
-  const labels = host.split(".");
-  const isIp = /^\d+(\.\d+)*$/.test(host);
 
-  // "padel-lounge.lapista.dk" -> "padel-lounge". A bare "lapista.dk" or
-  // "localhost" carries no tenant.
-  if (!isIp && labels.length >= 3 && !RESERVED.has(labels[0])) {
-    return labels[0];
+  // "padel-lounge.lapista.dk" -> "padel-lounge". Only subdomains of the
+  // platform's own domain name a center: on a hosting preview such as
+  // la-pista.vercel.app the first label is the project, not a tenant, so
+  // those hosts fall through to VITE_DEFAULT_CENTER_SLUG.
+  const suffix = "." + platformDomain();
+  if (host.endsWith(suffix)) {
+    const sub = host.slice(0, -suffix.length);
+    if (sub && !sub.includes(".") && !RESERVED.has(sub)) return sub;
   }
 
   return import.meta.env?.VITE_DEFAULT_CENTER_SLUG || null;

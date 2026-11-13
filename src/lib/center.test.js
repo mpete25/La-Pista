@@ -16,6 +16,17 @@ describe("centerSlugFromLocation", () => {
       .toBe("padel-lounge");
   });
 
+  it("ignores subdomains of other hosts, such as a Vercel or Netlify preview", () => {
+    expect(centerSlugFromLocation(at("https://la-pista.vercel.app/"))).toBeNull();
+    expect(centerSlugFromLocation(at("https://la-pista-git-main-mads.vercel.app/"))).toBeNull();
+    expect(centerSlugFromLocation(at("https://padel.netlify.app/"))).toBeNull();
+    expect(centerSlugFromLocation(at("https://la-pista.vercel.app/?center=padel-lounge"))).toBe("padel-lounge");
+  });
+
+  it("only takes a single label in front of the platform domain", () => {
+    expect(centerSlugFromLocation(at("https://a.b.lapista.dk/"))).toBeNull();
+  });
+
   it("treats platform hosts as tenant-less", () => {
     expect(centerSlugFromLocation(at("https://lapista.dk/"))).toBeNull();
     expect(centerSlugFromLocation(at("https://www.lapista.dk/"))).toBeNull();
