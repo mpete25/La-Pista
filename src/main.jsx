@@ -1,10 +1,17 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import { initMonitoring, reportError } from "./lib/monitoring.js";
+
+initMonitoring();
+window.addEventListener("unhandledrejection", (e) => reportError(e.reason, { source: "unhandledrejection" }));
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
 

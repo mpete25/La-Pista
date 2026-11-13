@@ -11,6 +11,7 @@
     "test:db": "./scripts/db-test.sh"
   },
   "dependencies": {
+    "@sentry/react": "^8.55.2",
     "@supabase/supabase-js": "^2.110.0",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
